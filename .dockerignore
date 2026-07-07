@@ -1,0 +1,20 @@
+node_modules
+dist
+dist-ssr
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+.idea
+.vscode
+android
+assets
+imagenes nuevas
+*.log
+test-results
+playwright-report
+.claude
+Dockerfile
+.dockerignore
+DEPLOY.md

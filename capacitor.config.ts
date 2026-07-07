@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Polarier Auto',
   webDir: 'dist',
   server: {
-    url: 'https://polarier-auto-production.up.railway.app',
+    url: 'https://app.automate-polarier.tech',
     cleartext: true
   },
   plugins: {

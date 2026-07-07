@@ -27,7 +27,20 @@
       "PowerShell(npm show @capacitor/filesystem@8.1.2 peerDependencies 2>&1)",
       "PowerShell(npm show @capacitor/share@latest version 2>&1)",
       "PowerShell(npm show @capacitor/filesystem@8.0.0 dependencies 2>&1)",
-      "PowerShell(npm show @capacitor/synapse versions --json)"
+      "PowerShell(npm show @capacitor/synapse versions --json)",
+      "PowerShell(bun add '@capacitor/filesystem' '@capacitor/share')",
+      "PowerShell(npm install '@capacitor/filesystem' '@capacitor/share')",
+      "PowerShell(npm run build)",
+      "PowerShell(npx cap sync android)",
+      "PowerShell(npm view '@capacitor/filesystem' versions --json)",
+      "PowerShell(npm view '@capacitor/filesystem@8.0.0' dependencies)",
+      "PowerShell(npm view '@capacitor/filesystem@8.1.2' dependencies)",
+      "PowerShell(try { \\(Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/dl/android/maven2/androidx/activity/group-index.xml'\\).Content } catch { $_.Exception.Message })",
+      "PowerShell(try { \\(Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/android/maven2/androidx/activity/group-index.xml'\\).Content } catch { $_.Exception.Message })",
+      "PowerShell(try { \\(Invoke-WebRequest -UseBasicParsing 'https://dl.google.com/dl/android/maven2/androidx/activity/activity/maven-metadata.xml'\\).Content } catch { $_.Exception.Message })",
+      "PowerShell(try { \\(Invoke-WebRequest -UseBasicParsing 'https://maven.google.com/androidx/activity/activity/maven-metadata.xml'\\).Content } catch { $_.Exception.Message })",
+      "PowerShell(try { \\(Invoke-WebRequest -UseBasicParsing 'https://maven.google.com/web/index.html#androidx.activity:activity'\\).Content.Substring\\(0,2000\\) } catch { $_.Exception.Message })",
+      "PowerShell(npm uninstall '@capacitor/filesystem' '@capacitor/share')"
     ],
     "additionalDirectories": [
       "C:\\Trabajo\\Polarier-Auto\\public\\backgrounds"

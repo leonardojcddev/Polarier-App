@@ -2,7 +2,17 @@ import { useState, useCallback } from "react";
 import { Download, X, FileText, FileSpreadsheet, FileArchive, File } from "lucide-react";
 import AudioPlayer from "@/components/AudioPlayer";
 import BotAvatar from "@/components/BotAvatar";
-import { getSignedDownloadUrl } from "@/services/storage";
+
+const withDownloadParam = (url: string, fileName: string) => {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("download", fileName);
+    return u.toString();
+  } catch {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}download=${encodeURIComponent(fileName)}`;
+  }
+};
 
 interface ChatMessageProps {
   sender: "bot" | "user";
@@ -113,26 +123,9 @@ const ChatMessage = ({ sender, text, time, initial = "U", avatarUrl }: ChatMessa
       "text-muted-foreground";
     const fileName = parsed.label;
     const fileUrl = parsed.url;
-    const handleDownload = useCallback(async () => {
-      const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-      if (isNative) {
-        await (window as any).Capacitor.Plugins.Downloader.download({ url: fileUrl, fileName });
-        return;
-      }
-      try {
-        const res = await fetch(fileUrl);
-        const blob = await res.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(objectUrl);
-      } catch {
-        window.open(fileUrl, "_blank");
-      }
+    const handleDownload = useCallback(() => {
+      const downloadUrl = withDownloadParam(fileUrl, fileName);
+      window.open(downloadUrl, "_system");
     }, [fileUrl, fileName]);
     body = (
       <button

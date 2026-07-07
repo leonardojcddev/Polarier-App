@@ -37,9 +37,6 @@ android/.gradle/
 android/capacitor-cordova-android-plugins/
 android/local.properties
 
-# Package manager artifacts
-package-lock.json
-
 # TypeScript build info
 *.tsbuildinfo
 
