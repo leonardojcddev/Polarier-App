@@ -22,13 +22,30 @@ En Easypanel → tu servicio → pestaña **Environment**, añade estas tres var
 VITE_SUPABASE_URL=https://zongaaygriklqsxzxfgl.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvbmdhYXlncmlrbHFzeHp4ZmdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNjU3NDIsImV4cCI6MjA5MDY0MTc0Mn0.d339dukdzDTULoEB3grjXC5NqrbCWEceNzGxSrOaa0A
 VITE_N8N_WEBHOOK_URL=https://automate-cuba24.app.n8n.cloud/webhook/cf778e0b-9af0-4f65-99f5-fc50634f2a90
+VITE_N8N_WEBHOOK_URL_TEST=https://automate-cuba24.app.n8n.cloud/webhook-test/cf778e0b-9af0-4f65-99f5-fc50634f2a90
+VITE_N8N_MODE=prod
 ```
 
 | Variable | Descripción |
 |----------|-------------|
 | `VITE_SUPABASE_URL` | URL del proyecto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Clave anónima (pública) de Supabase |
-| `VITE_N8N_WEBHOOK_URL` | Endpoint del webhook n8n para respuestas de IA |
+| `VITE_N8N_WEBHOOK_URL` | Webhook n8n de **producción** |
+| `VITE_N8N_WEBHOOK_URL_TEST` | Webhook n8n de **test** (endpoint `/webhook-test/...` de n8n) |
+| `VITE_N8N_MODE` | `prod` o `test` — decide cuál de las dos URLs usa la app |
+
+### Cambiar entre producción y test
+
+El modo lo controlas **tú** con la variable `VITE_N8N_MODE`. Ningún usuario puede cambiarlo desde la app.
+
+Para alternar:
+
+1. En Easypanel → tu servicio → **Environment**, cambia `VITE_N8N_MODE` a `test` (o a `prod`).
+2. Pulsa **Rebuild / Deploy**.
+
+No hace falta resubir el repo ni re-pegar las URLs largas: solo cambias esa palabra. El rebuild tarda ~1 min porque las variables `VITE_*` se incrustan en tiempo de build (limitación de Vite). Si no defines `VITE_N8N_MODE`, arranca en `prod` por defecto.
+
+> Recuerda que el endpoint `/webhook-test/...` de n8n solo responde mientras tengas el workflow **abierto en el editor con "Listen for test event" activo**. El de producción (`/webhook/...`) responde siempre con el workflow activo.
 
 ---
 

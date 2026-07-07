@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { uploadAssistantBlob } from '@/services/storage';
+import { getN8nWebhookUrl } from '@/lib/n8nMode';
 
 export interface Chat {
   id: string;
@@ -17,8 +18,6 @@ export interface ChatMessage {
   content: string;
   created_at: string;
 }
-
-const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
 
 export const getChats = async (): Promise<Chat[]> => {
   const { data, error } = await supabase
@@ -207,7 +206,7 @@ export const sendToN8n = async (
     if (fileInfo) {
       payload.file = fileInfo;
     }
-    const res = await fetch(N8N_WEBHOOK_URL, {
+    const res = await fetch(getN8nWebhookUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
