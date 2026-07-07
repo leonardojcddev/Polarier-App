@@ -21,9 +21,9 @@ En Easypanel → tu servicio → pestaña **Environment**, añade estas tres var
 ```
 VITE_SUPABASE_URL=https://zongaaygriklqsxzxfgl.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvbmdhYXlncmlrbHFzeHp4ZmdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNjU3NDIsImV4cCI6MjA5MDY0MTc0Mn0.d339dukdzDTULoEB3grjXC5NqrbCWEceNzGxSrOaa0A
-VITE_N8N_WEBHOOK_URL=https://automate-cuba24.app.n8n.cloud/webhook/cf778e0b-9af0-4f65-99f5-fc50634f2a90
-VITE_N8N_WEBHOOK_URL_TEST=https://automate-cuba24.app.n8n.cloud/webhook-test/cf778e0b-9af0-4f65-99f5-fc50634f2a90
-VITE_N8N_MODE=prod
+VITE_N8N_WEBHOOK_URL=https://polarierauto-n8n.1tn4v0.easypanel.host/webhook/cf778e0b-9af0-4f65-99f5-fc50634f2a90
+VITE_N8N_WEBHOOK_URL_TEST=https://polarierauto-n8n.1tn4v0.easypanel.host/webhook-test/cf778e0b-9af0-4f65-99f5-fc50634f2a90
+VITE_N8N_MODE=test
 ```
 
 | Variable | Descripción |
