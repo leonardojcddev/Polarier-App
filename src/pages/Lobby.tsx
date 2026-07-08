@@ -21,7 +21,15 @@ const ALLOWED_DOC_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/x-rar-compressed",
+  "application/vnd.rar",
+  "application/octet-stream",
 ];
+
+// ZIP/RAR llegan con file.type vacío o genérico: aceptamos también por extensión.
+const ALLOWED_EXTENSIONS = /\.(pdf|xlsx|doc|docx|zip|rar)$/i;
 
 interface GridOption {
   label: string;
@@ -121,8 +129,8 @@ const Lobby = () => {
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!ALLOWED_DOC_TYPES.includes(file.type)) {
-      alert("Solo se permiten archivos PDF, XLSX, DOC y DOCX");
+    if (!ALLOWED_DOC_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.test(file.name)) {
+      alert("Solo se permiten archivos PDF, XLSX, DOC, DOCX, ZIP y RAR");
       return;
     }
     setSending(true);
@@ -149,7 +157,7 @@ const Lobby = () => {
       <input
         ref={fileRef}
         type="file"
-        accept=".pdf,.xlsx,.doc,.docx"
+        accept=".pdf,.xlsx,.doc,.docx,.zip,.rar"
         className="hidden"
         onChange={handleFileSelected}
       />

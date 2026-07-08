@@ -6,9 +6,20 @@ const ALLOWED_DOC_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // ZIP / RAR: el navegador reporta el MIME de forma inconsistente, así que
+  // también se validan por extensión (ver isArchiveByName).
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'application/octet-stream',
 ];
+
+// ZIP y RAR a menudo llegan con file.type vacío o genérico; validamos por extensión.
+const isArchiveByName = (name: string): boolean =>
+  /\.(zip|rar)$/i.test(name);
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2MB
-const MAX_DOC_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_DOC_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_AUDIO_SIZE = 15 * 1024 * 1024; // 15MB
 
 export const uploadAvatar = async (file: File): Promise<string> => {
@@ -59,12 +70,13 @@ export const uploadDocument = async (
 }> => {
   const isAudio = file.type.startsWith('audio/');
   const isImage = file.type.startsWith('image/');
-  if (!isAudio && !isImage && !ALLOWED_DOC_TYPES.includes(file.type)) {
-    throw new Error('Solo se permiten archivos PDF, XLSX, DOC, DOCX, audio o imagen');
+  const isArchive = isArchiveByName(file.name);
+  if (!isAudio && !isImage && !isArchive && !ALLOWED_DOC_TYPES.includes(file.type)) {
+    throw new Error('Solo se permiten archivos PDF, XLSX, DOC, DOCX, ZIP, RAR, audio o imagen');
   }
   const maxSize = isAudio ? MAX_AUDIO_SIZE : MAX_DOC_SIZE;
   if (file.size > maxSize) {
-    throw new Error(isAudio ? 'El audio no puede superar 15MB' : 'El archivo no puede superar 20MB');
+    throw new Error(isAudio ? 'El audio no puede superar 15MB' : 'El archivo no puede superar 50MB');
   }
 
   const { data: { user } } = await supabase.auth.getUser();
