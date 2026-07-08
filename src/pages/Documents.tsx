@@ -1,15 +1,27 @@
 import { useState, useEffect } from "react";
-import { FileText, FileSpreadsheet, File, Download, Loader2 } from "lucide-react";
+import { FileText, FileSpreadsheet, File, Download, Loader2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "@/components/EmptyState";
-import { getDocuments, downloadDocument, getSignedDownloadUrl } from "@/services/storage";
+import { getDocuments, downloadDocument, getSignedDownloadUrl, deleteDocument } from "@/services/storage";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Documents = () => {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     getDocuments()
@@ -17,6 +29,21 @@ const Documents = () => {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteDocument(deleteTarget.id, deleteTarget.file_path);
+      setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+      toast.success("Documento eliminado");
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar el documento");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const handleDownload = async (doc: any) => {
     setDownloadingId(doc.id);
@@ -88,20 +115,51 @@ const Documents = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => handleDownload(doc)}
-              disabled={downloadingId === doc.id}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0 disabled:opacity-50"
-            >
-              {downloadingId === doc.id ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Download size={18} />
-              )}
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => handleDownload(doc)}
+                disabled={downloadingId === doc.id}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                title="Descargar"
+              >
+                {downloadingId === doc.id ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )}
+              </button>
+              <button
+                onClick={() => setDeleteTarget(doc)}
+                className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Eliminar"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará "{deleteTarget?.file_name}" de forma permanente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -178,6 +178,56 @@ export const downloadDocument = async (filePath: string, fileName: string): Prom
   URL.revokeObjectURL(url);
 };
 
+/**
+ * Borra un documento concreto: primero el archivo del bucket 'documents'
+ * y luego su fila en la tabla. Idempotente respecto a Storage (si el archivo
+ * ya no existe, la BD igual se limpia).
+ */
+export const deleteDocument = async (id: string, filePath: string): Promise<void> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No authenticated user');
+
+  if (filePath) {
+    await supabase.storage.from('documents').remove([filePath]);
+  }
+
+  const { error } = await supabase
+    .from('documents')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
+  if (error) throw error;
+};
+
+/**
+ * Borra todos los documentos (archivos de Storage + filas) asociados a un chat.
+ * Usado al eliminar un chat completo.
+ */
+export const deleteDocumentsByChat = async (chatId: string): Promise<void> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No authenticated user');
+
+  const { data: docs, error } = await supabase
+    .from('documents')
+    .select('id, file_path')
+    .eq('chat_id', chatId)
+    .eq('user_id', user.id);
+  if (error) throw error;
+  if (!docs || docs.length === 0) return;
+
+  const filePaths = docs.map((d: any) => d.file_path).filter(Boolean);
+  if (filePaths.length > 0) {
+    await supabase.storage.from('documents').remove(filePaths);
+  }
+
+  const ids = docs.map((d: any) => d.id);
+  const { error: delError } = await supabase
+    .from('documents')
+    .delete()
+    .in('id', ids);
+  if (delError) throw delError;
+};
+
 export const cleanupOldDocuments = async (): Promise<void> => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

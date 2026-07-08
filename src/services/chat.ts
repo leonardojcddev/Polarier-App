@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { uploadAssistantBlob } from '@/services/storage';
+import { uploadAssistantBlob, deleteDocumentsByChat } from '@/services/storage';
 import { getN8nWebhookUrl } from '@/lib/n8nMode';
 
 export interface Chat {
@@ -97,6 +97,20 @@ export const sendMessage = async (
 export const deleteChat = async (chatId: string): Promise<void> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No authenticated user');
+
+  // 1. Documentos del chat: archivos de Storage + filas en la tabla.
+  //    (El cascade de la BD nunca borra archivos de Storage, por eso va explícito.)
+  await deleteDocumentsByChat(chatId);
+
+  // 2. Mensajes del chat.
+  const { error: msgError } = await supabase
+    .from('chat_messages')
+    .delete()
+    .eq('chat_id', chatId)
+    .eq('user_id', user.id);
+  if (msgError) throw msgError;
+
+  // 3. El chat.
   const { error } = await supabase
     .from('chats')
     .delete()
