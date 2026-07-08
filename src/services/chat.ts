@@ -261,13 +261,22 @@ export const sendToN8n = async (
       }
     }
 
-    if (contentType.includes('application/json')) {
-      const json = await res.json();
-      const extracted = extractTextContent(json);
-      return resolveUrlResponse(extracted, chatId);
-    }
+    // Leemos el cuerpo como texto primero: así una respuesta 200 con cuerpo
+    // vacío (o content-type json sin body) no revienta en res.json().
     const rawText = await res.text();
-    const trimmed = rawText.trim() || null;
+    const trimmed = rawText.trim();
+    if (!trimmed) return null;
+
+    if (contentType.includes('application/json')) {
+      try {
+        const json = JSON.parse(trimmed);
+        const extracted = extractTextContent(json);
+        return resolveUrlResponse(extracted, chatId);
+      } catch {
+        // content-type dice json pero el cuerpo no lo es: tratarlo como texto
+        return resolveUrlResponse(trimmed, chatId);
+      }
+    }
     return resolveUrlResponse(trimmed, chatId);
   } catch {
     return null;
