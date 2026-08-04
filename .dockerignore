@@ -10,7 +10,8 @@ dist-ssr
 .vscode
 android
 assets
-imagenes nuevas
+design-assets
+vault
 *.log
 test-results
 playwright-report
