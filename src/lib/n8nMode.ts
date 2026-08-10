@@ -12,3 +12,11 @@ const MODE = (import.meta.env.VITE_N8N_MODE as string) === 'test' ? 'test' : 'pr
 export const getN8nWebhookUrl = (): string => {
   return MODE === 'test' ? TEST_URL : PROD_URL;
 };
+
+// Webhook dedicado para el envío de informes por correo (flujo n8n aparte).
+const EMAIL_PROD_URL = (import.meta.env.VITE_N8N_EMAIL_WEBHOOK_URL as string) || '';
+const EMAIL_TEST_URL = (import.meta.env.VITE_N8N_EMAIL_WEBHOOK_URL_TEST as string) || EMAIL_PROD_URL;
+
+export const getN8nEmailWebhookUrl = (): string => {
+  return MODE === 'test' ? EMAIL_TEST_URL : EMAIL_PROD_URL;
+};

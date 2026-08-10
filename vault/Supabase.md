@@ -10,6 +10,7 @@ Proyecto Supabase usado para **auth, base de datos y Storage**.
 
 | Tabla | Descripción | Columnas clave |
 |-------|-------------|----------------|
+| `polos_turisticos` | Polos (nivel superior de hoteles) | `id`, `nombre` |
 | `chats` | Conversaciones | `id`, `user_id`, `title`, `created_at` |
 | `chat_messages` | Mensajes de cada chat | `id`, `chat_id`, `user_id`, `role`, `content` |
 | `profiles` | Perfil del usuario | `id`, `full_name`, `avatar_url` |

@@ -55,6 +55,22 @@ Para que la app reciba la respuesta, el **nodo Webhook de entrada** debe tener `
 - Para devolver archivos: `Respond With = Binary File`.
 - n8n **no descomprime ZIP/RAR de forma nativa** — si se sube un comprimido, el workflow debe descomprimirlo/procesarlo explícitamente. Ver [[Pendientes]].
 
+## Flujo "Enviar informe email" (correo del módulo de auditoría)
+
+Envío del informe de auditoría por correo con el PDF adjunto. **Instancia distinta a la del chat**: n8n cloud `automate-cuba24.app.n8n.cloud`.
+
+- Workflow id: `Komb1YycRFKXTvkX` · Webhook path: `19a7f802-ebd2-43da-9bba-457403f2e4ca`.
+- **Prod:** `https://automate-cuba24.app.n8n.cloud/webhook/19a7f802-...` · **Test:** `.../webhook-test/19a7f802-...`
+- Config en la app: `VITE_N8N_EMAIL_WEBHOOK_URL(_TEST)` (respeta `VITE_N8N_MODE`). Servicio: `src/services/informeCorreo.ts`.
+
+**Nodos:** `Recibir Informe` (Webhook POST, responseNode) → `PDF desde Base64` (Convert to File `toBinary`, `sourceProperty: body.adjunto.base64`, `dataIsBase64`) → `Enviar Correo` (Gmail send, credencial **Alejandro** `HBi7yP5CZn4l71AS`, adjunto binario `data`, `replyTo = body.remitente`) → `Responder OK` (responde `{ ok: true }`).
+
+**Payload que envía la app** (bajo `body`): `{ para, asunto, mensaje, remitente, remitente_nombre, informe:{titulo,hotel,polo,fecha,...}, adjunto:{ filename, mime_type, base64 } }`.
+
+**Remitente:** técnicamente el correo lo despacha la cuenta Gmail de n8n (Alejandro) — Supabase Auth **no** da acceso SMTP del usuario, así que no se puede enviar "desde" su dirección (fallaría SPF/DKIM/DMARC). Para acercarlo: `senderName` = **nombre del usuario logueado** (`remitente_nombre`) y `replyTo` = **su email** (`remitente`). Así se ve a su nombre y las respuestas le llegan. Enviar realmente desde la cuenta del usuario exigiría OAuth `gmail.send` por usuario (módulo aparte, no hecho). Ver [[Pendientes]].
+
+Pendiente: **activar** el workflow (toggle *Active*) para prod; en test hay que ponerlo a *Listen for test event*. Ver [[Pendientes]].
+
 ## MCP de n8n
 
-Existe un conector MCP de n8n disponible en las sesiones de Claude (requiere autorización). Permite inspeccionar/editar workflows programáticamente.
+Existe un conector MCP de n8n disponible en las sesiones de Claude (requiere autorización). Permite inspeccionar/editar workflows programáticamente. El workflow debe tener **"Available in MCP"** activado para poder leerlo/editarlo.

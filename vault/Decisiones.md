@@ -4,6 +4,28 @@ Registro de decisiones tomadas en el proyecto, con fecha y motivo. Lo más recie
 
 ---
 
+## 2026-08 — Módulo de Auditoría (Fase 1)
+
+- **Fecha:** 2026-08 (fase 1 del sistema de control de almacén hotelero).
+- **Funcionalidad añadida:** módulo de auditoría con formularios diarios nativos (Lencería, Producción, Cuadrador Lavatín), rol de auditor con navegación propia (sin chat), histórico con acceso al formulario (editable hoy / solo lectura días pasados) y enganche de descarga PDF. Ver [[Modulo-Auditoria]] y [[Referencias-Formularios]].
+- **Archivos creados:**
+  - SQL: `supabase/migrations/001_audit_module.sql`, `002_forms_produccion_cuadrador.sql`
+  - Servicios: `src/services/audit.ts`, `src/services/hotels.ts`
+  - Contexto: `src/context/RoleContext.tsx`
+  - Componentes: `src/components/audit/AuditLayout.tsx`, `LenceriaMatrix.tsx`, `LineasTable.tsx`
+  - Páginas: `src/pages/audit/AuditHome.tsx`, `AuditForm.tsx`, `AuditHistory.tsx`
+  - `src/App.tsx` (RoleProvider + rutas + guards), `src/index.css` (utilidad `.no-spinner`)
+- **Decisiones técnicas:**
+  - **Multi-hotel desde el inicio**: jerarquía `polos_turisticos → hoteles → roles/formularios`. `polo_id` nullable para no bloquear el presente. No se hardcodea el hotel.
+  - **`data`/`config` como JSONB** + tabla `form_definitions`: permite añadir o cambiar formularios sin migraciones de esquema. Prioriza escalabilidad/mantenibilidad.
+  - **RLS estricta**: cada auditor solo ve sus submissions, en su hotel (`has_hotel_access()`).
+  - **PDF/WhatsApp diferidos**: solo se dejó el enganche (`informe_url`, `informe_estado`, `enviado_at`). La generación irá en n8n + pythonrunner (respeta la arquitectura aprobada).
+  - Formularios producción/cuadrador con **líneas dinámicas** (añadir/quitar vale) en vez de filas fijas del Excel.
+- **Futuras mejoras:**
+  - Generación real del PDF (formato Polarier) y envío WhatsApp/email vía n8n.
+  - Validar si producción necesita el **desglose de manchas por color** (se agrupó en una columna). Ver [[Referencias-Formularios]].
+  - Polos turísticos (UI) y selector de hotel activo cuando haya más de uno.
+
 ## 2026-08 — Preparación para deploy y correcciones
 
 ### Reorganización: memoria en Obsidian + limpieza

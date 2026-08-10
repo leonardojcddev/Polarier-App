@@ -10,6 +10,8 @@ Vault de Obsidian con todo lo necesario recordar sobre **Polarier** (repo: `Pola
 - [[Stack-y-Convenciones]] — Tecnologías, comandos, reglas del proyecto.
 - [[Supabase]] — Tablas, buckets de Storage, RLS.
 - [[Integracion-n8n]] — Webhooks, modos prod/test, formato de respuestas.
+- [[Modulo-Auditoria]] — Formularios de control de almacén hotelero (multi-hotel).
+- [[Referencias-Formularios]] — Mapeo Excel original ↔ módulo de la app.
 - [[Deploy-Easypanel]] — Cómo desplegar en la VPS de Hostinger.
 - [[Decisiones]] — Registro de decisiones tomadas y su porqué.
 - [[Pendientes]] — Tareas y cosas por revisar.

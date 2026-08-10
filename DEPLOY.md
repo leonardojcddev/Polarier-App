@@ -24,6 +24,8 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 VITE_N8N_WEBHOOK_URL=https://polarierauto-n8n.1tn4v0.easypanel.host/webhook/cf778e0b-9af0-4f65-99f5-fc50634f2a90
 VITE_N8N_WEBHOOK_URL_TEST=https://polarierauto-n8n.1tn4v0.easypanel.host/webhook-test/cf778e0b-9af0-4f65-99f5-fc50634f2a90
 VITE_N8N_MODE=test
+VITE_N8N_EMAIL_WEBHOOK_URL=https://automate-cuba24.app.n8n.cloud/webhook/19a7f802-ebd2-43da-9bba-457403f2e4ca
+VITE_N8N_EMAIL_WEBHOOK_URL_TEST=https://automate-cuba24.app.n8n.cloud/webhook-test/19a7f802-ebd2-43da-9bba-457403f2e4ca
 ```
 
 | Variable | Descripción |
@@ -32,7 +34,9 @@ VITE_N8N_MODE=test
 | `VITE_SUPABASE_ANON_KEY` | Clave anónima (pública) de Supabase |
 | `VITE_N8N_WEBHOOK_URL` | Webhook n8n de **producción** |
 | `VITE_N8N_WEBHOOK_URL_TEST` | Webhook n8n de **test** (endpoint `/webhook-test/...` de n8n) |
-| `VITE_N8N_MODE` | `prod` o `test` — decide cuál de las dos URLs usa la app |
+| `VITE_N8N_MODE` | `prod` o `test` — decide cuál de las dos URLs usa la app (aplica también al webhook de correo) |
+| `VITE_N8N_EMAIL_WEBHOOK_URL` | Webhook n8n de **producción** para envío de informes por correo (instancia n8n cloud) |
+| `VITE_N8N_EMAIL_WEBHOOK_URL_TEST` | Webhook n8n de **test** para envío de correo |
 
 ### Cambiar entre producción y test
 

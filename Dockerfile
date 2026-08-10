@@ -1,11 +1,11 @@
 # ---- Build stage ----
-FROM node:20-alpine AS build
+FROM oven/bun:1-alpine AS build
 
 WORKDIR /app
 
-# Instalar dependencias (usa package-lock.json si existe)
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Instalar dependencias con bun (lockfile: bun.lock)
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
 
 # Copiar el resto del código
 COPY . .
@@ -17,14 +17,18 @@ ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_N8N_WEBHOOK_URL
 ARG VITE_N8N_WEBHOOK_URL_TEST
 ARG VITE_N8N_MODE
+ARG VITE_N8N_EMAIL_WEBHOOK_URL
+ARG VITE_N8N_EMAIL_WEBHOOK_URL_TEST
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_N8N_WEBHOOK_URL=$VITE_N8N_WEBHOOK_URL
 ENV VITE_N8N_WEBHOOK_URL_TEST=$VITE_N8N_WEBHOOK_URL_TEST
 ENV VITE_N8N_MODE=$VITE_N8N_MODE
+ENV VITE_N8N_EMAIL_WEBHOOK_URL=$VITE_N8N_EMAIL_WEBHOOK_URL
+ENV VITE_N8N_EMAIL_WEBHOOK_URL_TEST=$VITE_N8N_EMAIL_WEBHOOK_URL_TEST
 
-RUN npm run build
+RUN bun run build
 
 # ---- Runtime stage ----
 FROM nginx:alpine AS runtime
