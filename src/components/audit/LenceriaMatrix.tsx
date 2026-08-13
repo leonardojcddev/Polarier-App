@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import type { Prenda, Ubicacion } from "@/services/audit";
 
 // data: { [ubicacionId]: { [prendaId]: number } }
@@ -37,13 +38,20 @@ interface Props {
   data: MatrixData;
   onChange: (data: MatrixData) => void;
   readOnly?: boolean;
+  onAddUbicacion?: () => void;
+  onRenameUbicacion?: (id: string, nombre: string) => void;
+  onRemoveUbicacion?: (id: string) => void;
 }
+
+// Las ubicaciones añadidas por el supervisor se marcan con orden < 0.
+// Su nombre es editable (vacío al crearse) mientras el formulario no sea readOnly.
+const esEditable = (u: Ubicacion) => u.orden < 0;
 
 /**
  * Matriz ubicación × prenda con totales de fila/columna calculados en vivo.
  * Rediseño nativo del control de lencería (no reproduce Excel visualmente).
  */
-const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly }: Props) => {
+const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly, onAddUbicacion, onRenameUbicacion, onRemoveUbicacion }: Props) => {
   const totals = useMemo(
     () => computeTotals(data, ubicaciones, prendas),
     [data, ubicaciones, prendas]
@@ -77,16 +85,27 @@ const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly }: Prop
                 {p.codigo && <span className="text-[10px] font-normal opacity-70">{p.codigo}</span>}
               </th>
             ))}
-            <th className="px-4 py-3.5 font-semibold text-center min-w-[80px] border-l-2 tbl-head-sep rounded-tr-2xl">
+            <th className={`px-4 py-3.5 font-semibold text-center min-w-[80px] border-l-2 tbl-head-sep ${readOnly ? "rounded-tr-2xl" : ""}`}>
               Total
             </th>
+            {!readOnly && <th className="px-2 py-3.5 w-10 rounded-tr-2xl" aria-label="Acciones"></th>}
           </tr>
         </thead>
         <tbody>
           {ubicaciones.map((u, i) => (
             <tr key={u.id} className={`transition-colors ${i % 2 ? "bg-muted/30" : "bg-card"}`}>
               <td className={`sticky left-0 z-10 font-medium text-foreground px-4 py-2 border-t border-border whitespace-nowrap ${i % 2 ? "bg-muted" : "bg-card"}`}>
-                {u.nombre}
+                {esEditable(u) && !readOnly ? (
+                  <input
+                    type="text"
+                    value={u.nombre}
+                    onChange={(e) => onRenameUbicacion?.(u.id, e.target.value)}
+                    className="w-40 rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-medium outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/30"
+                    placeholder="Nombre de la ubicación"
+                  />
+                ) : (
+                  u.nombre
+                )}
               </td>
               {prendas.map((p) => (
                 <td key={p.id} className="px-1.5 py-1.5 border-t border-border text-center">
@@ -105,6 +124,20 @@ const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly }: Prop
               <td className="px-4 py-2 border-t border-border text-center font-semibold text-primary bg-accent/10">
                 {totals.porUbicacion[u.id] || 0}
               </td>
+              {!readOnly && (
+                <td className="px-2 py-2 border-t border-border text-center">
+                  {esEditable(u) && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveUbicacion?.(u.id)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="Eliminar ubicación"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -116,23 +149,55 @@ const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly }: Prop
                 {totals.porPrenda[p.id] || 0}
               </td>
             ))}
-            <td className="px-4 py-3 text-center bg-accent text-accent-foreground rounded-br-2xl">
+            <td className={`px-4 py-3 text-center bg-accent text-accent-foreground ${readOnly ? "rounded-br-2xl" : ""}`}>
               {totals.general}
             </td>
+            {!readOnly && <td className="px-2 py-3 bg-primary rounded-br-2xl"></td>}
           </tr>
         </tfoot>
       </table>
     </div>
 
+    {!readOnly && onAddUbicacion && (
+      <button
+        type="button"
+        onClick={onAddUbicacion}
+        className="hidden lg:inline-flex items-center gap-2 mt-3 rounded-xl border border-dashed border-primary/50 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+      >
+        <Plus className="h-4 w-4" />
+        Añadir ubicación
+      </button>
+    )}
+
     {/* Vista de tarjetas (móvil): una tarjeta por ubicación */}
     <div className="lg:hidden space-y-3">
       {ubicaciones.map((u) => (
         <div key={u.id} className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between bg-primary text-primary-foreground px-4 py-2.5">
-            <span className="font-semibold text-sm">{u.nombre}</span>
-            <span className="text-xs bg-accent text-accent-foreground rounded-full px-2.5 py-0.5 font-semibold">
+          <div className="flex items-center justify-between gap-2 bg-primary text-primary-foreground px-4 py-2.5">
+            {esEditable(u) && !readOnly ? (
+              <input
+                type="text"
+                value={u.nombre}
+                onChange={(e) => onRenameUbicacion?.(u.id, e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-primary-foreground/30 bg-primary-foreground/10 px-2 py-1 text-sm font-semibold text-primary-foreground placeholder:text-primary-foreground/60 outline-none focus:ring-2 focus:ring-primary-foreground/40"
+                placeholder="Nombre de la ubicación"
+              />
+            ) : (
+              <span className="font-semibold text-sm">{u.nombre}</span>
+            )}
+            <span className="shrink-0 text-xs bg-accent text-accent-foreground rounded-full px-2.5 py-0.5 font-semibold">
               Total: {totals.porUbicacion[u.id] || 0}
             </span>
+            {esEditable(u) && !readOnly && (
+              <button
+                type="button"
+                onClick={() => onRemoveUbicacion?.(u.id)}
+                className="shrink-0 p-1 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/15 transition-colors"
+                title="Eliminar ubicación"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 p-4">
             {prendas.map((p) => (
@@ -153,6 +218,16 @@ const LenceriaMatrix = ({ ubicaciones, prendas, data, onChange, readOnly }: Prop
           </div>
         </div>
       ))}
+      {!readOnly && onAddUbicacion && (
+        <button
+          type="button"
+          onClick={onAddUbicacion}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <Plus className="h-4 w-4" />
+          Añadir ubicación
+        </button>
+      )}
       {/* Totales por prenda (resumen inferior en móvil) */}
       <div className="rounded-2xl border border-border bg-primary/90 text-primary-foreground shadow-sm p-4">
         <p className="text-sm font-semibold mb-2">Totales por prenda</p>

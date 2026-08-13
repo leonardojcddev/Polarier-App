@@ -29,7 +29,29 @@ import CategoriasForm, {
   initCategorias,
   computeCategoriasTotals,
 } from "@/components/audit/CategoriasForm";
+import CuadradorForm, {
+  CuadradorData,
+  PrendaPeso,
+  initCuadrador,
+  computeCuadradorTotals,
+} from "@/components/audit/CuadradorForm";
 import { ColumnaDef } from "@/components/audit/LineasTable";
+
+// Fallback del catálogo de prendas con peso (kg/prenda) si la definición no lo
+// trae en config.prendas_peso. Pesos de pesos_prendas.jpeg.
+const PRENDAS_PESO_DEFAULT: PrendaPeso[] = [
+  { nombre: "Sábana Personal", peso: 0.75 },
+  { nombre: "Sábana King", peso: 1.02 },
+  { nombre: "Funda de Almohada", peso: 0.17 },
+  { nombre: "Toalla Alfombra", peso: 0.25 },
+  { nombre: "Toalla Baño", peso: 0.61 },
+  { nombre: "Toalla Cara", peso: 0.27 },
+  { nombre: "Toalla Facial", peso: 0.06 },
+  { nombre: "Toalla Piscina", peso: 0.94 },
+  { nombre: "Cubremantel", peso: 0.75 },
+  { nombre: "Mantel", peso: 0.39 },
+  { nombre: "Servilleta", peso: 0.08 },
+];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -68,7 +90,11 @@ const AuditForm = () => {
           getSubmission(defId, fecha),
         ]);
         setPrendas(pr);
-        setUbicaciones(ub);
+
+        // Ubicaciones añadidas manualmente por el supervisor se guardan dentro de
+        // data._ubicaciones (la BD solo tiene las fijas). Las fusionamos al cargar.
+        const extra = (sub?.data?._ubicaciones as Ubicacion[]) ?? [];
+        setUbicaciones([...ub, ...extra]);
 
         // Datos existentes → cargar. Formulario nuevo → precargar según layout.
         if (sub?.data && Object.keys(sub.data).length > 0) {
@@ -85,6 +111,9 @@ const AuditForm = () => {
           } else if (layout === "categorias") {
             const cats = (found.config?.categorias as string[]) ?? [];
             setData(initCategorias(cats, cabeceraInicial));
+          } else if (layout === "cuadrador") {
+            const pp = (found.config?.prendas_peso as PrendaPeso[]) ?? PRENDAS_PESO_DEFAULT;
+            setData(initCuadrador(cabeceraInicial, pp));
           } else if (layout === "lineas") {
             const precargadas = (found.config?.prendas_precargadas as string[]) ?? [];
             setData({
@@ -115,6 +144,12 @@ const AuditForm = () => {
   );
   const layout = def?.config?.layout as string | undefined;
 
+  // Catálogo de prendas con peso para el Cuadrador (config o fallback).
+  const prendasPeso = useMemo<PrendaPeso[]>(
+    () => (def?.config?.prendas_peso as PrendaPeso[]) ?? PRENDAS_PESO_DEFAULT,
+    [def]
+  );
+
   const calcularTotales = (): Record<string, unknown> => {
     if (!def) return {};
     if (def.tipo === "lenceria") {
@@ -126,6 +161,9 @@ const AuditForm = () => {
     if (layout === "categorias") {
       const columnas = (def.config?.columnas as ColumnaDef[]) ?? [];
       return computeCategoriasTotals(data as CategoriasData, columnas) as unknown as Record<string, unknown>;
+    }
+    if (layout === "cuadrador") {
+      return computeCuadradorTotals(data as CuadradorData, prendasPeso) as unknown as Record<string, unknown>;
     }
     return computeLineasTotals(data as LineasData, grupos) as unknown as Record<string, unknown>;
   };
@@ -146,9 +184,10 @@ const AuditForm = () => {
       polo: activeHotel.polo?.nombre ?? undefined,
       prendas,
       ubicaciones,
+      prendasPeso,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [informeOpen, def, activeHotel, data, prendas, ubicaciones, fecha, readOnly]);
+  }, [informeOpen, def, activeHotel, data, prendas, ubicaciones, prendasPeso, fecha, readOnly]);
 
   const persist = async (estado: "borrador" | "completado") => {
     if (!activeHotel || !def) return;
@@ -234,6 +273,31 @@ const AuditForm = () => {
             data={data as MatrixData}
             onChange={setData}
             readOnly={readOnly}
+            onAddUbicacion={() => {
+              const nueva = { id: uid(), nombre: "", orden: -1 };
+              setUbicaciones((prev) => {
+                const next = [...prev, nueva];
+                setData((d: Record<string, unknown>) => ({ ...d, _ubicaciones: next.filter((u) => u.orden < 0) }));
+                return next;
+              });
+            }}
+            onRenameUbicacion={(id, nombre) =>
+              setUbicaciones((prev) => {
+                const next = prev.map((u) => (u.id === id ? { ...u, nombre } : u));
+                setData((d: Record<string, unknown>) => ({ ...d, _ubicaciones: next.filter((u) => u.orden < 0) }));
+                return next;
+              })
+            }
+            onRemoveUbicacion={(id) =>
+              setUbicaciones((prev) => {
+                const next = prev.filter((u) => u.id !== id);
+                setData((d: Record<string, unknown>) => {
+                  const { [id]: _drop, ...rest } = d as Record<string, unknown>;
+                  return { ...rest, _ubicaciones: next.filter((u) => u.orden < 0) };
+                });
+                return next;
+              })
+            }
           />
         ) : layout === "vales" ? (
           <ValesForm
@@ -249,6 +313,14 @@ const AuditForm = () => {
             columnas={(def.config?.columnas as ColumnaDef[]) ?? []}
             cabecera={cabecera}
             data={(data as CategoriasData)?.categorias ? (data as CategoriasData) : { categorias: [] }}
+            onChange={setData}
+            readOnly={readOnly}
+          />
+        ) : layout === "cuadrador" ? (
+          <CuadradorForm
+            prendas={prendasPeso}
+            cabecera={cabecera}
+            data={(data as CuadradorData)?.lineas ? (data as CuadradorData) : { lineas: [] }}
             onChange={setData}
             readOnly={readOnly}
           />

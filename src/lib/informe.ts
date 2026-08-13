@@ -18,7 +18,17 @@ import {
 import { MatrixData, computeTotals } from "@/components/audit/LenceriaMatrix";
 import { ValesData } from "@/components/audit/ValesForm";
 import { CategoriasData } from "@/components/audit/CategoriasForm";
+import {
+  CuadradorData,
+  PrendaPeso,
+  prendaProduccion,
+  prendaKg,
+  computeCuadradorTotals,
+} from "@/components/audit/CuadradorForm";
 import { LineasData } from "@/components/audit/LineasTable";
+
+const fmtKg2 = (n: number): string =>
+  n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export interface InformeCampo {
   label: string;
@@ -137,6 +147,33 @@ const buildCategorias = (data: CategoriasData, columnas: ColumnaDef[]): InformeT
 };
 
 // -----------------------------------------------------------------------------
+// Layout: cuadrador (tabla única de líneas; 2 columnas calculadas)
+// -----------------------------------------------------------------------------
+const buildCuadrador = (data: CuadradorData, prendas: PrendaPeso[]): InformeTabla[] => {
+  const columnas = [
+    "Vale",
+    "Prenda",
+    "Cant. Declaración Jurada de Sucio",
+    "Pendiente",
+    "Producción (prenda)",
+    "Producción (kg)",
+    "Observaciones",
+  ];
+  const filas = (data.lineas ?? []).map((l) => [
+    cel(l.valores?.vale as string),
+    l.prenda || "",
+    cel(l.valores?.declaracion as number),
+    cel(l.valores?.pendiente as number),
+    prendaProduccion(l),
+    fmtKg2(prendaKg(l, prendas)),
+    cel(l.valores?.observaciones as string),
+  ]);
+  const t = computeCuadradorTotals(data, prendas);
+  const total: (string | number)[] = ["Total", "", t.declaracion, t.pendiente, t.prenda, fmtKg2(t.kg), ""];
+  return [{ columnas, filas, total }];
+};
+
+// -----------------------------------------------------------------------------
 // Layout: lineas (tabla única por prenda)
 // -----------------------------------------------------------------------------
 const buildLineas = (
@@ -175,8 +212,9 @@ export const buildInforme = (params: {
   polo?: string;
   ubicaciones?: Ubicacion[];
   prendas?: Prenda[];
+  prendasPeso?: PrendaPeso[];
 }): Informe => {
-  const { submission, definition, hotel, polo, ubicaciones = [], prendas = [] } = params;
+  const { submission, definition, hotel, polo, ubicaciones = [], prendas = [], prendasPeso = [] } = params;
   const config = definition.config ?? {};
   const layout = config.layout as string | undefined;
   const cabecera = config.cabecera as CampoCabecera[] | undefined;
@@ -191,6 +229,8 @@ export const buildInforme = (params: {
   } else if (layout === "categorias") {
     const columnas = (config.columnas as ColumnaDef[]) ?? [];
     tablas = buildCategorias(data as CategoriasData, columnas);
+  } else if (layout === "cuadrador") {
+    tablas = buildCuadrador(data as CuadradorData, prendasPeso);
   } else {
     tablas = buildLineas(data as LineasData, grupos, Boolean(config.campo_observaciones));
   }
