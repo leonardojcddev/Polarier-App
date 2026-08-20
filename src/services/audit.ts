@@ -158,3 +158,137 @@ export const getSubmissionHistory = async (
   if (error) throw error;
   return (data ?? []) as FormSubmission[];
 };
+
+// -----------------------------------------------------------------------------
+// Informes mensuales (apartado "por meses")
+// -----------------------------------------------------------------------------
+export type MonthlyEstado = 'pendiente' | 'generando' | 'listo' | 'error';
+
+export interface MonthlyReport {
+  id: string;
+  hotel_id: string;
+  user_id: string;
+  anio: number;
+  mes: number; // 1..12
+  estado: MonthlyEstado;
+  resumen: Record<string, unknown>;
+  metricas: Record<string, unknown>;
+  pdf_url: string | null;
+  generado_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Dos dígitos para construir fechas YYYY-MM-DD.
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * Submissions de un mes concreto (rango [primer día, primer día del mes siguiente)).
+ * La RLS limita a las del propio usuario.
+ */
+export const getSubmissionsByMonth = async (
+  hotelId: string,
+  anio: number,
+  mes: number
+): Promise<FormSubmission[]> => {
+  const desde = `${anio}-${pad2(mes)}-01`;
+  const sigAnio = mes === 12 ? anio + 1 : anio;
+  const sigMes = mes === 12 ? 1 : mes + 1;
+  const hasta = `${sigAnio}-${pad2(sigMes)}-01`; // exclusivo
+  const { data, error } = await supabase
+    .from('form_submissions')
+    .select('*')
+    .eq('hotel_id', hotelId)
+    .gte('fecha', desde)
+    .lt('fecha', hasta)
+    .order('fecha', { ascending: false })
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as FormSubmission[];
+};
+
+/**
+ * Informes mensuales existentes de un hotel (los del propio usuario, por RLS).
+ * Sirve para conocer el estado de cada mes en el listado.
+ */
+export const getMonthlyReports = async (hotelId: string): Promise<MonthlyReport[]> => {
+  const { data, error } = await supabase
+    .from('monthly_reports')
+    .select('*')
+    .eq('hotel_id', hotelId)
+    .order('anio', { ascending: false })
+    .order('mes', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as MonthlyReport[];
+};
+
+/**
+ * Informe mensual de un (hotel, año, mes) concreto, si existe (del propio usuario
+ * por RLS). Para la vista de detalle del mes.
+ */
+export const getMonthlyReport = async (
+  hotelId: string,
+  anio: number,
+  mes: number
+): Promise<MonthlyReport | null> => {
+  const { data, error } = await supabase
+    .from('monthly_reports')
+    .select('*')
+    .eq('hotel_id', hotelId)
+    .eq('anio', anio)
+    .eq('mes', mes)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as MonthlyReport | null;
+};
+
+/**
+ * URL firmada del PDF del informe mensual (bucket privado 'informes-mensuales').
+ * pdfUrl es la ruta guardada en monthly_reports.pdf_url.
+ */
+export const getMonthlyReportPdfUrl = async (
+  pdfUrl: string,
+  expiresInSec = 3600
+): Promise<string> => {
+  const { data, error } = await supabase.storage
+    .from('informes-mensuales')
+    .createSignedUrl(pdfUrl, expiresInSec);
+  if (error || !data) throw new Error('No se pudo generar la URL del informe');
+  return data.signedUrl;
+};
+
+/**
+ * Crea o actualiza el informe mensual de un (hotel, usuario, año, mes).
+ * Pensado para que el agente lo rellene más adelante; disponible ya como enganche.
+ */
+export const upsertMonthlyReport = async (params: {
+  hotelId: string;
+  anio: number;
+  mes: number;
+  estado?: MonthlyEstado;
+  resumen?: Record<string, unknown>;
+  metricas?: Record<string, unknown>;
+  pdfUrl?: string | null;
+}): Promise<MonthlyReport> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No authenticated user');
+
+  const row: Record<string, unknown> = {
+    hotel_id: params.hotelId,
+    user_id: user.id,
+    anio: params.anio,
+    mes: params.mes,
+  };
+  if (params.estado !== undefined) row.estado = params.estado;
+  if (params.resumen !== undefined) row.resumen = params.resumen;
+  if (params.metricas !== undefined) row.metricas = params.metricas;
+  if (params.pdfUrl !== undefined) row.pdf_url = params.pdfUrl;
+
+  const { data, error } = await supabase
+    .from('monthly_reports')
+    .upsert(row, { onConflict: 'hotel_id,user_id,anio,mes' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as MonthlyReport;
+};

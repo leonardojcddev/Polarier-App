@@ -1,83 +1,86 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, CalendarDays, ChevronRight, FileText, Sparkles } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
 import {
   getSubmissionHistory,
-  getFormDefinitions,
-  getPrendas,
-  getUbicaciones,
+  getMonthlyReports,
   FormSubmission,
-  FormDefinition,
+  MonthlyReport,
+  MonthlyEstado,
 } from "@/services/audit";
-import { buildInforme, Informe } from "@/lib/informe";
-import InformePreview from "@/components/audit/InformePreview";
 
-const hoyStr = () => new Date().toISOString().slice(0, 10);
+const NOMBRES_MES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+interface MesResumen {
+  anio: number;
+  mes: number; // 1..12
+  clave: string; // "2026-08"
+  nombre: string; // "Agosto 2026"
+  total: number; // nº de informes diarios
+  estado: MonthlyEstado | null; // estado del informe mensual (si existe)
+}
+
+// Etiqueta y color del badge según el estado del informe mensual.
+const ESTADO_BADGE: Record<MonthlyEstado, { label: string; clase: string }> = {
+  pendiente: { label: "Informe pendiente", clase: "text-amber-600 bg-amber-500/10" },
+  generando: { label: "Generando…", clase: "text-blue-600 bg-blue-500/10" },
+  listo: { label: "Informe listo", clase: "text-green-600 bg-green-500/10" },
+  error: { label: "Error", clase: "text-destructive bg-destructive/10" },
+};
 
 const AuditHistory = () => {
   const navigate = useNavigate();
   const { activeHotel, loading: roleLoading } = useRole();
-  const [items, setItems] = useState<FormSubmission[]>([]);
-  const [defs, setDefs] = useState<Record<string, FormDefinition>>({});
+  const [subs, setSubs] = useState<FormSubmission[]>([]);
+  const [monthly, setMonthly] = useState<MonthlyReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [informe, setInforme] = useState<Informe | null>(null);
-  const [informeOpen, setInformeOpen] = useState(false);
-  const [informeLoading, setInformeLoading] = useState(false);
-  const [informeFecha, setInformeFecha] = useState<string>("");
 
   useEffect(() => {
     if (!activeHotel) return;
     (async () => {
       setLoading(true);
       try {
-        const [subs, definitions] = await Promise.all([
+        const [s, m] = await Promise.all([
           getSubmissionHistory(activeHotel.id),
-          getFormDefinitions(activeHotel.id),
+          getMonthlyReports(activeHotel.id),
         ]);
-        setItems(subs);
-        setDefs(Object.fromEntries(definitions.map((d) => [d.id, d])));
+        setSubs(s);
+        setMonthly(m);
       } finally {
         setLoading(false);
       }
     })();
   }, [activeHotel?.id]);
 
-  // Abre la vista previa del informe para una submission (genera el PDF en cliente).
-  const verInforme = async (s: FormSubmission) => {
-    const def = defs[s.form_definition_id];
-    if (!def || !activeHotel) return;
-    setInformeOpen(true);
-    setInformeLoading(true);
-    setInforme(null);
-    setInformeFecha(s.fecha);
-    try {
-      // La lencería necesita catálogos para nombrar filas/columnas.
-      const [prendas, ubicaciones] =
-        def.tipo === "lenceria"
-          ? await Promise.all([getPrendas(activeHotel.id), getUbicaciones(activeHotel.id)])
-          : [[], []];
-      setInforme(
-        buildInforme({
-          submission: s,
-          definition: def,
-          hotel: activeHotel.nombre,
-          polo: activeHotel.polo?.nombre ?? undefined,
-          prendas,
-          ubicaciones,
-        })
-      );
-    } catch (err: any) {
-      toast.error(err.message || "No se pudo generar el informe");
-      setInformeOpen(false);
-    } finally {
-      setInformeLoading(false);
-    }
-  };
+  // Agrupa las submissions por mes y cruza con el estado del informe mensual.
+  const meses = useMemo<MesResumen[]>(() => {
+    const estadoPorClave = new Map<string, MonthlyEstado>();
+    for (const r of monthly) estadoPorClave.set(`${r.anio}-${String(r.mes).padStart(2, "0")}`, r.estado);
 
-  const fmtFecha = (f: string) =>
-    new Date(f + "T00:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+    const conteo = new Map<string, number>();
+    for (const s of subs) {
+      const clave = s.fecha.slice(0, 7); // "YYYY-MM"
+      conteo.set(clave, (conteo.get(clave) ?? 0) + 1);
+    }
+
+    return Array.from(conteo.entries())
+      .map(([clave, total]) => {
+        const [anio, mes] = clave.split("-").map(Number);
+        return {
+          anio,
+          mes,
+          clave,
+          nombre: `${NOMBRES_MES[mes - 1]} ${anio}`,
+          total,
+          estado: estadoPorClave.get(clave) ?? null,
+        };
+      })
+      .sort((a, b) => b.clave.localeCompare(a.clave)); // más reciente primero
+  }, [subs, monthly]);
 
   if (roleLoading || loading) {
     return (
@@ -90,63 +93,47 @@ const AuditHistory = () => {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-xl font-semibold text-foreground mb-6">Histórico de formularios</h1>
+        <h1 className="text-xl font-semibold text-foreground mb-1">Histórico por meses</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Elige un mes para ver sus informes y, al cierre, su informe de comportamiento mensual.
+        </p>
 
-        {items.length === 0 ? (
+        {meses.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aún no has registrado ningún formulario.</p>
         ) : (
           <div className="space-y-3">
-            {items.map((s) => {
-              const def = defs[s.form_definition_id];
-              const total = (s.totales as any)?.general ?? null;
-              const esHoy = s.fecha === hoyStr();
-              const abrir = () =>
-                navigate(
-                  esHoy
-                    ? `/auditoria/formulario/${s.form_definition_id}`
-                    : `/auditoria/formulario/${s.form_definition_id}?fecha=${s.fecha}`
-                );
+            {meses.map((m) => {
+              const badge = m.estado ? ESTADO_BADGE[m.estado] : null;
               return (
                 <div
-                  key={s.id}
-                  onClick={abrir}
+                  key={m.clave}
+                  onClick={() => navigate(`/auditoria/historico/${m.clave}`)}
                   role="button"
                   className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-secondary hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <FileText size={18} className="text-primary" />
+                        <CalendarDays size={18} className="text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {def?.nombre ?? "Formulario"}
-                          {esHoy && <span className="ml-2 text-[10px] uppercase text-secondary font-medium">Hoy</span>}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {fmtFecha(s.fecha)}
-                          {total !== null && <> · Total: <span className="font-medium text-foreground">{total}</span></>}
+                        <p className="text-sm font-semibold text-foreground truncate capitalize">{m.nombre}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <FileText size={12} />
+                          {m.total} {m.total === 1 ? "informe" : "informes"}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      {s.estado === "completado" ? (
-                        <span className="hidden sm:flex items-center gap-1 text-xs text-green-600">
-                          <CheckCircle2 size={14} /> Completado
+                      {badge ? (
+                        <span className={`hidden sm:flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 ${badge.clase}`}>
+                          <Sparkles size={12} /> {badge.label}
                         </span>
                       ) : (
-                        <span className="hidden sm:flex items-center gap-1 text-xs text-amber-600">
-                          <Circle size={14} /> Borrador
+                        <span className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground rounded-full px-2.5 py-1 bg-muted">
+                          Sin informe mensual
                         </span>
                       )}
-                      {/* Ver informe (vista previa + descarga PDF, generado en cliente) */}
-                      <button
-                        title="Ver informe / Descargar PDF"
-                        onClick={(e) => { e.stopPropagation(); verInforme(s); }}
-                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        <Download size={16} />
-                      </button>
                       <ChevronRight size={16} className="text-muted-foreground" />
                     </div>
                   </div>
@@ -156,15 +143,6 @@ const AuditHistory = () => {
           </div>
         )}
       </div>
-
-      {informeOpen && (
-        <InformePreview
-          informe={informe}
-          fecha={informeFecha}
-          loading={informeLoading}
-          onClose={() => setInformeOpen(false)}
-        />
-      )}
     </div>
   );
 };

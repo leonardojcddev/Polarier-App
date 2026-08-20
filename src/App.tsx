@@ -11,6 +11,7 @@ import AuditLayout from "./components/audit/AuditLayout";
 import AuditHome from "./pages/audit/AuditHome";
 import AuditForm from "./pages/audit/AuditForm";
 import AuditHistory from "./pages/audit/AuditHistory";
+import AuditMonth from "./pages/audit/AuditMonth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -89,6 +90,7 @@ const App = () => (
                   <Route path="/auditoria" element={<AuditHome />} />
                   <Route path="/auditoria/formulario/:defId" element={<AuditForm />} />
                   <Route path="/auditoria/historico" element={<AuditHistory />} />
+                  <Route path="/auditoria/historico/:anioMes" element={<AuditMonth />} />
                 </Route>
 
                 {/* App estándar (los auditores puros se redirigen a /auditoria) */}
