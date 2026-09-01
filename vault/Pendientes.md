@@ -34,6 +34,16 @@ Tareas y cosas por revisar. Marca `[x]` al completar.
 - [ ] Cambiar el auditor de prueba (`leodev0211@gmail.com`) por el usuario real del hotel.
 - [ ] Cuando haya más de un hotel: UI de selección de hotel activo y polos turísticos.
 
+## Informe mensual / Routine
+
+- [x] Tablas `monthly_reports` (004) y bucket `informes-mensuales` (005) aplicadas en Supabase.
+- [x] Apartado por meses en la app: `AuditHistory` (lista de meses) → `AuditMonth` (detalle + bloque de informe mensual). Servicios en `audit.ts`.
+- [x] Prompt maestro de la routine y expresión cron definidos y **queries verificadas** contra la BD. Ver [[Routine-Informe-Mensual]].
+- [ ] **Programar la routine en Claude Desktop**: schedule día 1 (`5 6 1 * *`) + pegar el prompt del vault. Requiere MCP de Supabase conectado y con escritura permitida en Desktop.
+- [ ] Borrar la fila de **PRUEBA** de agosto 2026 en `monthly_reports` cuando ya no se necesite.
+- [ ] **Fase 2 — PDF:** workflow n8n que convierta el markdown del informe a PDF y lo suba a `informes-mensuales`, rellenando `monthly_reports.pdf_url`. Pospuesto porque n8n no tiene HTML→PDF nativo.
+- [ ] Añadir hoteles: la routine ya itera todos los hoteles activos; falta la UI de selección de hotel activo (ver también Módulo de Auditoría).
+
 ## Ideas / futuro
 
 - (añadir aquí ideas que surjan)
