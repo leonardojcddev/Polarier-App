@@ -24,6 +24,27 @@ allprojects {
     }
 }
 
+// El SDK local tiene Build Tools 35.0.0 (no 34.0.0, que pide AGP por defecto y no
+// se puede descargar en este entorno). Forzamos 35.0.0 en todos los modulos Android.
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                buildToolsVersion "35.0.0"
+            }
+        }
+    }
+
+    // AGP 8.13 pide com.android.tools.lint:lint-gradle:31.13.0 al ejecutar
+    // extract*Annotations, pero Google no publica ese artefacto (404). Los modulos
+    // de Capacitor no exportan anotaciones typedef, asi que desactivamos la
+    // extraccion. El consumidor sync*LibJars espera un typedefs.txt: se genera vacio
+    // antes del build con scripts/prepare-typedefs (ver DEPLOY / build-apk).
+    tasks.matching { it.name.startsWith("extract") && it.name.endsWith("Annotations") }.configureEach {
+        it.enabled = false
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

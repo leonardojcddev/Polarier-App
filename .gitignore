@@ -43,3 +43,4 @@ android/local.properties
 # Playwright test results
 test-results/
 playwright-report/
+dist-apk/
