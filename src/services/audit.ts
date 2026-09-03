@@ -175,6 +175,8 @@ export interface MonthlyReport {
   metricas: Record<string, unknown>;
   pdf_url: string | null;
   generado_at: string | null;
+  /** Cuándo se pidió el informe desde la app. Es la cola que atiende la routine. */
+  solicitado_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -291,4 +293,59 @@ export const upsertMonthlyReport = async (params: {
     .single();
   if (error) throw error;
   return data as MonthlyReport;
+};
+
+/**
+ * Pide el informe mensual de un hotel y periodo.
+ *
+ * Son dos cosas, en este orden y con esta prioridad:
+ *
+ *  1. Escribe la SOLICITUD en `monthly_reports` (`estado='pendiente'`,
+ *     `solicitado_at=now`). Esto es lo que manda: lo escribe un usuario
+ *     autenticado y pasa por RLS, así que es la única fuente fiable de qué
+ *     informe hay que generar.
+ *  2. Despierta a la routine de Claude llamando a la Edge Function
+ *     `disparar-informe-mensual` (que guarda el token del endpoint /fire; no
+ *     puede vivir en el bundle de Vite, que es público).
+ *
+ * Si (2) falla no se lanza error: la solicitud ya está en la cola y el barrido
+ * diario de la routine la recogerá. Solo se pierde la inmediatez.
+ */
+export const solicitarInformeMensual = async (
+  hotelId: string,
+  anio: number,
+  mes: number
+): Promise<{ reporte: MonthlyReport; disparada: boolean }> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No authenticated user');
+
+  const { data, error } = await supabase
+    .from('monthly_reports')
+    .upsert(
+      {
+        hotel_id: hotelId,
+        user_id: user.id,
+        anio,
+        mes,
+        estado: 'pendiente' as MonthlyEstado,
+        solicitado_at: new Date().toISOString(),
+      },
+      { onConflict: 'hotel_id,user_id,anio,mes' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+
+  let disparada = false;
+  try {
+    const { error: fnError } = await supabase.functions.invoke('disparar-informe-mensual', {
+      body: { hotel_id: hotelId, anio, mes },
+    });
+    disparada = !fnError;
+    if (fnError) console.warn('No se pudo disparar la routine:', fnError);
+  } catch (e) {
+    console.warn('No se pudo disparar la routine:', e);
+  }
+
+  return { reporte: data as MonthlyReport, disparada };
 };

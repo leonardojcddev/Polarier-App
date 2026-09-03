@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown } from "lucide-react";
+import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
 import {
@@ -10,6 +10,7 @@ import {
   getUbicaciones,
   getMonthlyReport,
   getMonthlyReportPdfUrl,
+  solicitarInformeMensual,
   FormSubmission,
   FormDefinition,
   MonthlyReport,
@@ -48,6 +49,7 @@ const AuditMonth = () => {
   const [reporte, setReporte] = useState<MonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pidiendo, setPidiendo] = useState(false);
   const [informe, setInforme] = useState<Informe | null>(null);
   const [informeOpen, setInformeOpen] = useState(false);
   const [informeLoading, setInformeLoading] = useState(false);
@@ -109,6 +111,47 @@ const AuditMonth = () => {
     }
   };
 
+  // La routine de Claude no escribe en la app: escribe en `monthly_reports`. Así
+  // que mientras el informe esté en cola o generándose hay que ir preguntando.
+  // Se corta a los 15 minutos para no dejar un intervalo colgado si algo falla.
+  const enCurso = reporte?.estado === "pendiente" || reporte?.estado === "generando";
+  useEffect(() => {
+    if (!enCurso || !activeHotel || !anio || !mes) return;
+    const limite = Date.now() + 15 * 60 * 1000;
+    const id = setInterval(async () => {
+      if (Date.now() > limite) {
+        clearInterval(id);
+        return;
+      }
+      try {
+        const r = await getMonthlyReport(activeHotel.id, anio, mes);
+        if (r) setReporte(r);
+      } catch {
+        /* si falla una consulta, se reintenta en el siguiente tick */
+      }
+    }, 15000);
+    return () => clearInterval(id);
+  }, [enCurso, activeHotel?.id, anio, mes]);
+
+  // Pide el informe del mes: encola la solicitud y despierta a la routine.
+  const pedirInforme = async () => {
+    if (!activeHotel || !anio || !mes) return;
+    setPidiendo(true);
+    try {
+      const { reporte: r, disparada } = await solicitarInformeMensual(activeHotel.id, anio, mes);
+      setReporte(r);
+      toast.success(
+        disparada
+          ? "Informe solicitado. Tarda un par de minutos en escribirse."
+          : "Informe encolado. Se generará en la próxima pasada de la routine."
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo solicitar el informe");
+    } finally {
+      setPidiendo(false);
+    }
+  };
+
   // Abre el PDF del informe mensual (URL firmada del bucket privado).
   const abrirPdfMensual = async () => {
     if (!reporte?.pdf_url) return;
@@ -145,14 +188,15 @@ const AuditMonth = () => {
         </button>
         <h1 className="text-xl font-semibold text-foreground mb-6 capitalize">{tituloMes}</h1>
 
-        {/* Informe de comportamiento mensual (lo genera la routine el día 1). */}
-        {reporte && (
-          <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-5">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Sparkles size={16} className="text-primary" /> Informe de comportamiento mensual
-              </h2>
-              {reporte.estado === "listo" && reporte.pdf_url && (
+        {/* Informe de comportamiento mensual: lo redacta la routine de Claude en la
+            nube, el día 1 de cada mes o cuando se pide desde aquí. */}
+        <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Sparkles size={16} className="text-primary" /> Informe de comportamiento mensual
+            </h2>
+            <div className="flex items-center gap-2">
+              {reporte?.estado === "listo" && reporte.pdf_url && (
                 <button
                   onClick={abrirPdfMensual}
                   disabled={pdfLoading}
@@ -162,28 +206,53 @@ const AuditMonth = () => {
                   Abrir PDF
                 </button>
               )}
+              {!enCurso && (
+                <button
+                  onClick={pedirInforme}
+                  disabled={pidiendo || items.length === 0}
+                  title={
+                    items.length === 0
+                      ? "Este mes no tiene ningún parte que analizar"
+                      : undefined
+                  }
+                  className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                  {reporte?.estado === "listo" ? "Regenerar" : "Generar informe"}
+                </button>
+              )}
             </div>
-
-            {reporte.estado === "listo" ? (
-              <div className="space-y-2 text-sm text-foreground/90">
-                {typeof (reporte.resumen as { analisis?: unknown })?.analisis === "string" && (
-                  <p className="whitespace-pre-line">{(reporte.resumen as { analisis: string }).analisis}</p>
-                )}
-                {Array.isArray((reporte.resumen as { valoraciones?: unknown })?.valoraciones) && (
-                  <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                    {((reporte.resumen as { valoraciones: string[] }).valoraciones).map((v, i) => (
-                      <li key={i}>{v}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : reporte.estado === "error" ? (
-              <p className="text-sm text-destructive">Hubo un error al generar el informe de este mes.</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">El informe de este mes se está generando…</p>
-            )}
           </div>
-        )}
+
+          {!reporte ? (
+            <p className="text-sm text-muted-foreground">
+              Este mes todavía no tiene informe. Genéralo cuando quieras: se escribe a partir
+              de los partes diarios del mes.
+            </p>
+          ) : reporte.estado === "listo" ? (
+            <div className="space-y-2 text-sm text-foreground/90">
+              {typeof (reporte.resumen as { analisis?: unknown })?.analisis === "string" && (
+                <p className="whitespace-pre-line">{(reporte.resumen as { analisis: string }).analisis}</p>
+              )}
+              {Array.isArray((reporte.resumen as { valoraciones?: unknown })?.valoraciones) && (
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  {((reporte.resumen as { valoraciones: string[] }).valoraciones).map((v, i) => (
+                    <li key={i}>{v}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : reporte.estado === "error" ? (
+            <p className="text-sm text-destructive">
+              Hubo un error al generar el informe de este mes. Puedes volver a pedirlo.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" />
+              Redactando el informe… suele tardar un par de minutos.
+            </p>
+          )}
+        </div>
 
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hay informes en este mes.</p>

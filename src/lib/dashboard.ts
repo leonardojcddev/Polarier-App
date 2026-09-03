@@ -397,6 +397,10 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
 // solo día atípico no arrastra el umbral y las comparaciones siguen siendo justas.
 // Hacen falta al menos 3 días con datos para que la referencia signifique algo.
 // -----------------------------------------------------------------------------
+// OJO: estos umbrales están replicados en la vista SQL `audit_mes_dias`
+// (supabase/migrations/006_auditoria_datos_ia.sql), que es la que alimenta el
+// informe mensual. Si cambian aquí, hay que cambiarlos allí o el dashboard y el
+// informe clasificarán los mismos días de forma distinta.
 const UMBRAL_BAJO = 0.75; // por debajo del 75 % de la mediana → merece mirada
 const UMBRAL_MUY_BAJO = 0.5; // por debajo de la mitad → prioridad alta
 const UMBRAL_PICO = 1.5; // más del 150 % → pico que conviene entender
