@@ -20,6 +20,7 @@ import { buildInformeMensual, periodoInforme } from "@/lib/informeMensual";
 import { descargarInformePdf } from "@/lib/informePdf";
 import InformePreview from "@/components/audit/InformePreview";
 import EnviarCorreoModal from "@/components/audit/EnviarCorreoModal";
+import InformeMensualTexto from "@/components/audit/InformeMensualTexto";
 
 const NOMBRES_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -27,6 +28,8 @@ const NOMBRES_MES = [
 ];
 
 const hoyStr = () => new Date().toISOString().slice(0, 10);
+
+const SIN_INFORME = "Disponible cuando el informe del mes esté generado";
 
 // Catálogo de pesos por prenda (fallback) para el informe del Cuadrador.
 const PRENDAS_PESO_DEFAULT = [
@@ -231,7 +234,7 @@ const AuditMonth = () => {
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Sparkles size={16} className="text-primary" /> Informe de comportamiento mensual
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {reporte?.estado === "listo" && reporte.pdf_url && (
                 <button
                   onClick={abrirPdfMensual}
@@ -242,11 +245,27 @@ const AuditMonth = () => {
                   Abrir PDF
                 </button>
               )}
-              {!enCurso && mensualListo && (
+              {/* Los tres botones están siempre a la vista; descargar y enviar
+                  se activan cuando hay un informe redactado que mandar. */}
+              {!enCurso && (
                 <>
                   <button
+                    onClick={pedirInforme}
+                    disabled={pidiendo || items.length === 0}
+                    title={
+                      items.length === 0
+                        ? "Este mes no tiene ningún parte que analizar"
+                        : undefined
+                    }
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                    {reporte?.estado === "listo" ? "Regenerar" : "Generar informe"}
+                  </button>
+                  <button
                     onClick={descargarMensual}
-                    disabled={descargandoMensual}
+                    disabled={!mensualListo || descargandoMensual}
+                    title={mensualListo ? undefined : SIN_INFORME}
                     className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     {descargandoMensual ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -254,27 +273,14 @@ const AuditMonth = () => {
                   </button>
                   <button
                     onClick={() => setCorreoMensualOpen(true)}
-                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg bg-secondary text-secondary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity"
+                    disabled={!mensualListo}
+                    title={mensualListo ? undefined : SIN_INFORME}
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg bg-secondary text-secondary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:hover:opacity-50"
                   >
                     <Mail size={14} />
                     Enviar por correo
                   </button>
                 </>
-              )}
-              {!enCurso && !mensualListo && (
-                <button
-                  onClick={pedirInforme}
-                  disabled={pidiendo || items.length === 0}
-                  title={
-                    items.length === 0
-                      ? "Este mes no tiene ningún parte que analizar"
-                      : undefined
-                  }
-                  className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  Generar informe
-                </button>
               )}
             </div>
           </div>
@@ -285,18 +291,13 @@ const AuditMonth = () => {
               de los partes diarios del mes.
             </p>
           ) : reporte.estado === "listo" ? (
-            <div className="space-y-2 text-sm text-foreground/90">
-              {typeof (reporte.resumen as { analisis?: unknown })?.analisis === "string" && (
-                <p className="whitespace-pre-line">{(reporte.resumen as { analisis: string }).analisis}</p>
-              )}
-              {Array.isArray((reporte.resumen as { valoraciones?: unknown })?.valoraciones) && (
-                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                  {((reporte.resumen as { valoraciones: string[] }).valoraciones).map((v, i) => (
-                    <li key={i}>{v}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            informeMensual ? (
+              <InformeMensualTexto informe={informeMensual} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                El informe consta como generado, pero no tiene texto. Vuelve a generarlo.
+              </p>
+            )
           ) : reporte.estado === "error" ? (
             <p className="text-sm text-destructive">
               Hubo un error al generar el informe de este mes. Puedes volver a pedirlo.

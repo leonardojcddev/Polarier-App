@@ -49,13 +49,13 @@ const pintar = async () => {
 };
 
 describe("AuditMonth · botonera del informe mensual", () => {
-  it("con el informe hecho ofrece descargar y enviar, no regenerar", async () => {
+  it("con el informe hecho, los tres botones activos y el de generar dice Regenerar", async () => {
     reporteActual = reporteListo;
     await pintar();
 
-    expect(await screen.findByRole("button", { name: "Descargar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Enviar por correo" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Regenerar" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Regenerar" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Descargar" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Enviar por correo" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Generar informe" })).not.toBeInTheDocument();
   });
 
@@ -69,18 +69,42 @@ describe("AuditMonth · botonera del informe mensual", () => {
     expect(screen.getByDisplayValue(/Informe mensual de auditoría · Agosto 2026/)).toBeInTheDocument();
   });
 
-  it("sin informe todavía, ofrece generarlo", async () => {
+  it("sin informe todavía, los tres están a la vista pero solo se puede generar", async () => {
     reporteActual = null;
     await pintar();
 
-    expect(await screen.findByRole("button", { name: "Generar informe" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Descargar" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Generar informe" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Descargar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enviar por correo" })).toBeDisabled();
   });
 
-  it("si el estado dice listo pero no hay texto, no deja la caja sin botones", async () => {
+  it("si el estado dice listo pero no hay texto, no se puede descargar ni enviar", async () => {
     reporteActual = { ...reporteListo, resumen: {} } as MonthlyReport;
     await pintar();
 
-    expect(await screen.findByRole("button", { name: "Generar informe" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Regenerar" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Descargar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enviar por correo" })).toBeDisabled();
+  });
+});
+
+describe("AuditMonth · el informe en pantalla", () => {
+  it("pinta secciones y viñetas, no el markdown crudo", async () => {
+    reporteActual = reporteListo;
+    await pintar();
+
+    // El encabezado en negrita del análisis pasa a ser un título de sección.
+    expect(await screen.findByText("Volumen del mes")).toBeInTheDocument();
+    expect(screen.getByText("Se registraron 4 partes.")).toBeInTheDocument();
+    expect(screen.getByText("Valoraciones")).toBeInTheDocument();
+    expect(screen.getByText("Cerrar los partes a diario.")).toBeInTheDocument();
+
+    // Las métricas acompañan al texto, como en el PDF.
+    expect(screen.getByText(/Días con parte/)).toBeInTheDocument();
+
+    // Y no queda marcado de markdown a la vista.
+    const caja = screen.getByText("Volumen del mes").closest("div");
+    expect(caja!.textContent).not.toContain("**");
+    expect(caja!.textContent).not.toContain("##");
   });
 });

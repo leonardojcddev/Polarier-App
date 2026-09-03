@@ -308,6 +308,18 @@ solo negrita se vuelven títulos de sección, `- ` se vuelve viñeta, y el marca
 inline (`**`, `*`, backticks) se quita porque el PDF no lo sabe pintar. El primer
 encabezado se descarta: repite el título que ya va en la cabecera.
 
+Cada sección guarda sus `bloques` **en el orden del documento**, no en dos listas
+de párrafos y viñetas. La primera versión los separaba y eso reordenaba el texto:
+en «Pérdidas» la IA escribe la lista primero y el desglose después, y salía al
+revés. Hay test de regresión en `informeMensual.test.ts`.
+
+En pantalla lo pinta `InformeMensualTexto`, que consume la misma estructura que el
+PDF para que ambos muestren lo mismo. Antes se volcaba el markdown crudo en un
+`<p>` y se veían los `##` y los `**`.
+
+Los tres botones están siempre a la vista; descargar y enviar salen desactivados
+mientras no haya un informe redactado que mandar.
+
 **`pdf_url` y el bucket `informes-mensuales` siguen sin usarse**, y puede que ya no
 hagan falta: el PDF se genera en el cliente al pulsar, igual que el diario. El botón
 «Abrir PDF» que mira `pdf_url` sigue en el código pero nunca aparece.

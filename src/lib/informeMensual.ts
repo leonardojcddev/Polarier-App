@@ -54,7 +54,7 @@ export const parsearAnalisis = (markdown: string): InformeSeccion[] => {
   let primerTitulo = true;
 
   const abrir = (titulo?: string) => {
-    actual = { titulo, parrafos: [], vinetas: [] };
+    actual = { titulo, bloques: [] };
     secciones.push(actual);
   };
 
@@ -80,12 +80,15 @@ export const parsearAnalisis = (markdown: string): InformeSeccion[] => {
     if (!actual) abrir();
 
     const vin = /^[-*+]\s+(.*)$/.exec(linea);
-    if (vin) actual!.vinetas!.push(limpiarInline(vin[1]));
-    else actual!.parrafos!.push(limpiarInline(linea));
+    actual!.bloques.push(
+      vin
+        ? { tipo: "vineta", texto: limpiarInline(vin[1]) }
+        : { tipo: "parrafo", texto: limpiarInline(linea) }
+    );
   }
 
   // Fuera las secciones que quedaron sin contenido.
-  return secciones.filter((s) => s.titulo || s.parrafos!.length || s.vinetas!.length);
+  return secciones.filter((s) => s.titulo || s.bloques.length);
 };
 
 // `metricas.porFormulario` → tabla. Las claves son las que escribe la routine.
@@ -155,7 +158,10 @@ export const buildInformeMensual = (params: {
   const metricas = (reporte.metricas ?? {}) as Record<string, unknown>;
   const secciones = analisis ? parsearAnalisis(analisis) : [];
   if (valoraciones.length > 0) {
-    secciones.push({ titulo: "Valoraciones", vinetas: valoraciones.map(limpiarInline) });
+    secciones.push({
+      titulo: "Valoraciones",
+      bloques: valoraciones.map((v) => ({ tipo: "vineta" as const, texto: limpiarInline(v) })),
+    });
   }
 
   const nombreMes = reporte.mes >= 1 && reporte.mes <= 12 ? NOMBRES_MES[reporte.mes - 1] : "";

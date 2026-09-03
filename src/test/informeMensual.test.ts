@@ -15,6 +15,8 @@ Tres de los cuatro partes del mes quedaron en borrador.
 - Cuadrador Lavatín del 10 de agosto
 - Control de Lencería del 7 de agosto`;
 
+const SALTO = String.fromCharCode(10);
+
 const reporteBase: MonthlyReport = {
   id: "r1",
   hotel_id: "h1",
@@ -48,9 +50,8 @@ describe("parsearAnalisis", () => {
 
   it("separa párrafos de viñetas y limpia el marcado inline", () => {
     const [volumen, borradores] = parsearAnalisis(ANALISIS);
-    expect(volumen.parrafos).toHaveLength(1);
-    expect(volumen.vinetas).toHaveLength(0);
-    expect(borradores.vinetas).toEqual([
+    expect(volumen.bloques.map((b) => b.tipo)).toEqual(["parrafo"]);
+    expect(borradores.bloques.filter((b) => b.tipo === "vineta").map((b) => b.texto)).toEqual([
       "Cuadrador Lavatín del 10 de agosto",
       "Control de Lencería del 7 de agosto",
     ]);
@@ -58,11 +59,30 @@ describe("parsearAnalisis", () => {
     expect(JSON.stringify(parsearAnalisis(ANALISIS))).not.toContain("**");
   });
 
+  it("conserva el orden cuando un párrafo va DESPUÉS de las viñetas", () => {
+    // Caso real de la sección «Pérdidas»: primero la lista, luego el desglose.
+    // Guardar párrafos y viñetas en listas separadas los reordenaba, y eso
+    // cambiaba lo que decía el informe.
+    const md = [
+      "## Pérdidas",
+      "",
+      "- Faltantes: 0.",
+      "- Roturas: 0.",
+      "",
+      "Desglose por prenda: sin movimientos.",
+    ].join(SALTO);
+    expect(parsearAnalisis(md)[0].bloques).toEqual([
+      { tipo: "vineta", texto: "Faltantes: 0." },
+      { tipo: "vineta", texto: "Roturas: 0." },
+      { tipo: "parrafo", texto: "Desglose por prenda: sin movimientos." },
+    ]);
+  });
+
   it("aguanta texto sin ningún encabezado", () => {
     const secciones = parsearAnalisis("Un párrafo suelto.\n\nY otro.");
     expect(secciones).toHaveLength(1);
     expect(secciones[0].titulo).toBeUndefined();
-    expect(secciones[0].parrafos).toEqual(["Un párrafo suelto.", "Y otro."]);
+    expect(secciones[0].bloques.map((b) => b.texto)).toEqual(["Un párrafo suelto.", "Y otro."]);
   });
 });
 
@@ -80,7 +100,10 @@ describe("buildInformeMensual", () => {
     // Las valoraciones cierran el documento como última sección.
     expect(informe!.secciones!.at(-1)).toEqual({
       titulo: "Valoraciones",
-      vinetas: ["Cerrar los partes a diario.", "Revisar la dotación."],
+      bloques: [
+        { tipo: "vineta", texto: "Cerrar los partes a diario." },
+        { tipo: "vineta", texto: "Revisar la dotación." },
+      ],
     });
   });
 

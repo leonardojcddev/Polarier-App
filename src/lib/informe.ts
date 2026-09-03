@@ -43,13 +43,21 @@ export interface InformeTabla {
 }
 
 /**
- * Bloque de texto corrido. Lo usa el informe mensual, que es prosa redactada por
- * la IA en vez de tablas de un parte. Los partes diarios no lo rellenan.
+ * Sección de texto corrido. La usa el informe mensual, que es prosa redactada por
+ * la IA en vez de tablas de un parte. Los partes diarios no la rellenan.
+ *
+ * `bloques` va en el orden del documento original: dentro de una misma sección
+ * los párrafos y las viñetas se intercalan, y separarlos en dos listas cambiaría
+ * lo que dice el informe.
  */
+export interface InformeBloque {
+  tipo: "parrafo" | "vineta";
+  texto: string;
+}
+
 export interface InformeSeccion {
   titulo?: string;
-  parrafos?: string[];
-  vinetas?: string[];
+  bloques: InformeBloque[];
 }
 
 export interface Informe {

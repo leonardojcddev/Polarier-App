@@ -152,28 +152,30 @@ export const construirInformePdf = async (informe: Informe): Promise<jsPDF> => {
       doc.setFontSize(9.5);
       doc.setTextColor(40, 40, 40);
 
-      for (const parrafo of sec.parrafos ?? []) {
-        for (const linea of doc.splitTextToSize(parrafo, anchoUtil) as string[]) {
-          asegurar(5);
-          doc.text(linea, margin, y + 3.5);
-          y += 4.6;
-        }
-        y += 2;
-      }
-
-      for (const vineta of sec.vinetas ?? []) {
-        const lineas = doc.splitTextToSize(vineta, anchoUtil - 5) as string[];
-        lineas.forEach((linea, i) => {
-          asegurar(5);
-          if (i === 0) {
-            doc.setTextColor(...AZUL);
-            doc.text("•", margin + 1, y + 3.5);
-            doc.setTextColor(40, 40, 40);
+      // En el orden del documento: dentro de una sección los párrafos y las
+      // viñetas se intercalan, y reordenarlos cambiaría lo que dice el informe.
+      for (const bloque of sec.bloques) {
+        if (bloque.tipo === "vineta") {
+          const lineas = doc.splitTextToSize(bloque.texto, anchoUtil - 5) as string[];
+          lineas.forEach((linea, i) => {
+            asegurar(5);
+            if (i === 0) {
+              doc.setTextColor(...AZUL);
+              doc.text("•", margin + 1, y + 3.5);
+              doc.setTextColor(40, 40, 40);
+            }
+            doc.text(linea, margin + 5, y + 3.5);
+            y += 4.6;
+          });
+          y += 1.5;
+        } else {
+          for (const linea of doc.splitTextToSize(bloque.texto, anchoUtil) as string[]) {
+            asegurar(5);
+            doc.text(linea, margin, y + 3.5);
+            y += 4.6;
           }
-          doc.text(linea, margin + 5, y + 3.5);
-          y += 4.6;
-        });
-        y += 1.5;
+          y += 2;
+        }
       }
 
       y += 3;
