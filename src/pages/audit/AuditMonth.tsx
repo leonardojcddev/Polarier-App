@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown, Wand2 } from "lucide-react";
+import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown, Wand2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
 import {
@@ -16,7 +16,11 @@ import {
   MonthlyReport,
 } from "@/services/audit";
 import { buildInforme, Informe } from "@/lib/informe";
+import { buildInformeMensual, periodoInforme } from "@/lib/informeMensual";
+import { descargarInformePdf } from "@/lib/informePdf";
 import InformePreview from "@/components/audit/InformePreview";
+import EnviarCorreoModal from "@/components/audit/EnviarCorreoModal";
+import InformeMensualTexto from "@/components/audit/InformeMensualTexto";
 
 const NOMBRES_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -24,6 +28,8 @@ const NOMBRES_MES = [
 ];
 
 const hoyStr = () => new Date().toISOString().slice(0, 10);
+
+const SIN_INFORME = "Disponible cuando el informe del mes esté generado";
 
 // Catálogo de pesos por prenda (fallback) para el informe del Cuadrador.
 const PRENDAS_PESO_DEFAULT = [
@@ -54,9 +60,28 @@ const AuditMonth = () => {
   const [informeOpen, setInformeOpen] = useState(false);
   const [informeLoading, setInformeLoading] = useState(false);
   const [informeFecha, setInformeFecha] = useState<string>("");
+  const [descargandoMensual, setDescargandoMensual] = useState(false);
+  const [correoMensualOpen, setCorreoMensualOpen] = useState(false);
 
   const [anio, mes] = anioMes.split("-").map(Number);
   const tituloMes = mes >= 1 && mes <= 12 ? `${NOMBRES_MES[mes - 1]} ${anio}` : anioMes;
+
+  // El informe mensual traducido a la misma estructura `Informe` que usan el PDF
+  // y el envío por correo, para no duplicar ninguno de los dos.
+  const informeMensual = useMemo(
+    () =>
+      reporte && activeHotel
+        ? buildInformeMensual({
+            reporte,
+            hotel: activeHotel.nombre,
+            polo: activeHotel.polo?.nombre ?? undefined,
+          })
+        : null,
+    [reporte, activeHotel]
+  );
+  // Si el estado dice "listo" pero no hay texto que enviar, se sigue ofreciendo
+  // generarlo en vez de dejar la caja sin ningún botón.
+  const mensualListo = reporte?.estado === "listo" && informeMensual !== null;
 
   useEffect(() => {
     if (!activeHotel || !anio || !mes) return;
@@ -152,6 +177,20 @@ const AuditMonth = () => {
     }
   };
 
+  // Descarga el informe mensual como PDF, generado en el cliente igual que el
+  // de los partes diarios (no depende de `pdf_url` ni de n8n).
+  const descargarMensual = async () => {
+    if (!informeMensual || !reporte) return;
+    setDescargandoMensual(true);
+    try {
+      await descargarInformePdf(informeMensual, periodoInforme(reporte));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo generar el PDF");
+    } finally {
+      setDescargandoMensual(false);
+    }
+  };
+
   // Abre el PDF del informe mensual (URL firmada del bucket privado).
   const abrirPdfMensual = async () => {
     if (!reporte?.pdf_url) return;
@@ -195,7 +234,7 @@ const AuditMonth = () => {
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Sparkles size={16} className="text-primary" /> Informe de comportamiento mensual
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {reporte?.estado === "listo" && reporte.pdf_url && (
                 <button
                   onClick={abrirPdfMensual}
@@ -206,20 +245,42 @@ const AuditMonth = () => {
                   Abrir PDF
                 </button>
               )}
+              {/* Los tres botones están siempre a la vista; descargar y enviar
+                  se activan cuando hay un informe redactado que mandar. */}
               {!enCurso && (
-                <button
-                  onClick={pedirInforme}
-                  disabled={pidiendo || items.length === 0}
-                  title={
-                    items.length === 0
-                      ? "Este mes no tiene ningún parte que analizar"
-                      : undefined
-                  }
-                  className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {reporte?.estado === "listo" ? "Regenerar" : "Generar informe"}
-                </button>
+                <>
+                  <button
+                    onClick={pedirInforme}
+                    disabled={pidiendo || items.length === 0}
+                    title={
+                      items.length === 0
+                        ? "Este mes no tiene ningún parte que analizar"
+                        : undefined
+                    }
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                    {reporte?.estado === "listo" ? "Regenerar" : "Generar informe"}
+                  </button>
+                  <button
+                    onClick={descargarMensual}
+                    disabled={!mensualListo || descargandoMensual}
+                    title={mensualListo ? undefined : SIN_INFORME}
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    {descargandoMensual ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                    Descargar
+                  </button>
+                  <button
+                    onClick={() => setCorreoMensualOpen(true)}
+                    disabled={!mensualListo}
+                    title={mensualListo ? undefined : SIN_INFORME}
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg bg-secondary text-secondary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:hover:opacity-50"
+                  >
+                    <Mail size={14} />
+                    Enviar por correo
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -230,18 +291,13 @@ const AuditMonth = () => {
               de los partes diarios del mes.
             </p>
           ) : reporte.estado === "listo" ? (
-            <div className="space-y-2 text-sm text-foreground/90">
-              {typeof (reporte.resumen as { analisis?: unknown })?.analisis === "string" && (
-                <p className="whitespace-pre-line">{(reporte.resumen as { analisis: string }).analisis}</p>
-              )}
-              {Array.isArray((reporte.resumen as { valoraciones?: unknown })?.valoraciones) && (
-                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                  {((reporte.resumen as { valoraciones: string[] }).valoraciones).map((v, i) => (
-                    <li key={i}>{v}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            informeMensual ? (
+              <InformeMensualTexto informe={informeMensual} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                El informe consta como generado, pero no tiene texto. Vuelve a generarlo.
+              </p>
+            )
           ) : reporte.estado === "error" ? (
             <p className="text-sm text-destructive">
               Hubo un error al generar el informe de este mes. Puedes volver a pedirlo.
@@ -318,6 +374,14 @@ const AuditMonth = () => {
           </div>
         )}
       </div>
+
+      {correoMensualOpen && informeMensual && reporte && (
+        <EnviarCorreoModal
+          informe={informeMensual}
+          fecha={periodoInforme(reporte)}
+          onClose={() => setCorreoMensualOpen(false)}
+        />
+      )}
 
       {informeOpen && (
         <InformePreview

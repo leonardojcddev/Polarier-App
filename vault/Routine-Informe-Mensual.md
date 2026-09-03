@@ -291,10 +291,39 @@ consulta, ni existe la tentación de un `LIKE '2026-07%'` sobre una fecha.
       `functions.invoke` → `/fire` con un JWT real.
 - [ ] Borrar la fila de PRUEBA de agosto 2026 en `monthly_reports`.
 
-## Fase siguiente (no hecha)
+## PDF y correo (hecho el 2026-09-03)
 
-**PDF y correo.** `pdf_url` y el bucket `informes-mensuales` (migración 005) siguen
-sin usarse. El camino más corto es reutilizar `informePdf.ts` (jsPDF, ya genera el
-PDF diario en cliente) desde `AuditMonth`, en vez de montar un HTML→PDF en n8n —
-que fue justo lo que bloqueó esta fase en agosto de 2026, porque n8n no lo trae de
-serie. El envío por correo ya tiene flujo montado: ver [[Integracion-n8n]].
+Con el informe redactado, la caja de `AuditMonth` ofrece **Descargar** y **Enviar
+por correo** en lugar de «Regenerar».
+
+Ninguno de los dos es código nuevo de PDF ni de correo: `src/lib/informeMensual.ts`
+traduce la fila de `monthly_reports` al mismo tipo `Informe` que ya consumían el PDF
+diario (`informePdf.ts`) y el modal de correo (`EnviarCorreoModal` →
+`informeCorreo.ts` → webhook de n8n). Para que ese tipo admitiera prosa se le añadió
+`secciones?: InformeSeccion[]`, que `construirInformePdf` pinta antes de las tablas;
+los partes diarios no lo rellenan, así que no les afecta.
+
+`parsearAnalisis()` trocea el markdown de la IA: encabezados `##` y líneas que son
+solo negrita se vuelven títulos de sección, `- ` se vuelve viñeta, y el marcado
+inline (`**`, `*`, backticks) se quita porque el PDF no lo sabe pintar. El primer
+encabezado se descarta: repite el título que ya va en la cabecera.
+
+Cada sección guarda sus `bloques` **en el orden del documento**, no en dos listas
+de párrafos y viñetas. La primera versión los separaba y eso reordenaba el texto:
+en «Pérdidas» la IA escribe la lista primero y el desglose después, y salía al
+revés. Hay test de regresión en `informeMensual.test.ts`.
+
+En pantalla lo pinta `InformeMensualTexto`, que consume la misma estructura que el
+PDF para que ambos muestren lo mismo. Antes se volcaba el markdown crudo en un
+`<p>` y se veían los `##` y los `**`.
+
+Los tres botones están siempre a la vista; descargar y enviar salen desactivados
+mientras no haya un informe redactado que mandar.
+
+**`pdf_url` y el bucket `informes-mensuales` siguen sin usarse**, y puede que ya no
+hagan falta: el PDF se genera en el cliente al pulsar, igual que el diario. El botón
+«Abrir PDF» que mira `pdf_url` sigue en el código pero nunca aparece.
+
+`cargarLogo()` en `informePdf.ts` lleva un temporizador de 3 s. Sin él, si la imagen
+no dispara `onload` ni `onerror`, la promesa se queda pendiente para siempre y el
+botón gira sin fin. Sale un PDF sin logo, que es mejor que no salir.

@@ -42,6 +42,24 @@ export interface InformeTabla {
   total?: (string | number)[]; // fila de totales (opcional)
 }
 
+/**
+ * Sección de texto corrido. La usa el informe mensual, que es prosa redactada por
+ * la IA en vez de tablas de un parte. Los partes diarios no la rellenan.
+ *
+ * `bloques` va en el orden del documento original: dentro de una misma sección
+ * los párrafos y las viñetas se intercalan, y separarlos en dos listas cambiaría
+ * lo que dice el informe.
+ */
+export interface InformeBloque {
+  tipo: "parrafo" | "vineta";
+  texto: string;
+}
+
+export interface InformeSeccion {
+  titulo?: string;
+  bloques: InformeBloque[];
+}
+
 export interface Informe {
   titulo: string; // nombre del formulario
   hotel: string;
@@ -50,6 +68,7 @@ export interface Informe {
   estado: string;
   campos: InformeCampo[]; // datos de cabecera del parte
   tablas: InformeTabla[];
+  secciones?: InformeSeccion[]; // texto (informe mensual); va antes de las tablas
 }
 
 const fmtFecha = (f: string): string =>
