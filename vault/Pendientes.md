@@ -36,13 +36,33 @@ Tareas y cosas por revisar. Marca `[x]` al completar.
 
 ## Informe mensual / Routine
 
+Ver [[Routine-Informe-Mensual]] para el diseño completo y el prompt.
+
 - [x] Tablas `monthly_reports` (004) y bucket `informes-mensuales` (005) aplicadas en Supabase.
 - [x] Apartado por meses en la app: `AuditHistory` (lista de meses) → `AuditMonth` (detalle + bloque de informe mensual). Servicios en `audit.ts`.
-- [x] Prompt maestro de la routine y expresión cron definidos y **queries verificadas** contra la BD. Ver [[Routine-Informe-Mensual]].
-- [ ] **Programar la routine en Claude Desktop**: schedule día 1 (`5 6 1 * *`) + pegar el prompt del vault. Requiere MCP de Supabase conectado y con escritura permitida en Desktop.
-- [ ] Borrar la fila de **PRUEBA** de agosto 2026 en `monthly_reports` cuando ya no se necesite.
-- [ ] **Fase 2 — PDF:** workflow n8n que convierta el markdown del informe a PDF y lo suba a `informes-mensuales`, rellenando `monthly_reports.pdf_url`. Pospuesto porque n8n no tiene HTML→PDF nativo.
+- [x] **Capa de datos para la IA**: `006_auditoria_datos_ia.sql` (tablas `audit_daily` / `audit_daily_detalle`, trigger de aplanado, vistas `audit_mes` / `audit_mes_dias`, columna `solicitado_at`). Validada contra la BD en una transacción revertida.
+- [x] Botón «Generar informe» + polling en `AuditMonth`, y `solicitarInformeMensual()` en `audit.ts`.
+- [x] Edge Function `disparar-informe-mensual` escrita.
+
+**Para poner en marcha (pasos manuales, en este orden):**
+
+- [x] **Migración `006_auditoria_datos_ia.sql` aplicada** (2026-09-03), con backfill y trigger verificados.
+- [x] Routine creada por API: `Polarier — Informe mensual de auditoría`, id `trig_01TC5ozP9WKPMJiqiGuSz7i3`, cron `23 7 * * *`, modelo Sonnet, conector MCP de Supabase, prompt puesto. **Está deshabilitada** para que no dispare antes de tiempo.
+- [x] Conector de Supabase comprobado con una pasada en vacío (2026-09-03): la routine lee la cola con `mcp__Supabase__execute_sql` sin problemas de permisos. Las herramientas de un conector adjunto **no** pasan por la lista `allowed_tools` de la routine.
+- [x] Trigger de API añadido y token generado (`sk-ant-oat01-gmJLTP9s…`), y routine **habilitada** (2026-09-03). Primera pasada automática: 2026-09-04 07:23 UTC.
+- [x] Edge Function `disparar-informe-mensual` **desplegada** (2026-09-03, versión 1, `verify_jwt: true`) y secretos puestos.
+- [x] **Mitad servidor del circuito probada** (2026-09-03, sesión `cse_01YUoAPn4SAteVGN4p71r8Vw`): encolado → routine → informe escrito. Ver detalle en [[Routine-Informe-Mensual]].
+- [x] Rama `auditoria/informe-mensual-ia` y **PR #2** hacia `main` (2026-09-03). Lleva el informe mensual + los tres commits de auditoría/chat/agente que nunca llegaron a `main`; **deja fuera la firma del APK**, que sigue en `android/firma-apk-release`.
+- [ ] **Mergear el PR #2** y comprobar que Easypanel redespliega. Hasta entonces la VPS no tiene el botón: solo estaba en la copia de trabajo local.
+- [ ] **Falta la mitad cliente**: pulsar «Generar informe» en `/auditoria/historico/2026-08` estando logueado, para ejercitar `solicitarInformeMensual()` → `functions.invoke` → `/fire` con un JWT real. Es el único eslabón sin probar.
+- [x] La fila de PRUEBA de agosto 2026 ya no es de prueba: la routine la regeneró con un informe real. Copia del contenido viejo en el scratchpad de la sesión.
+
+**Después:**
+
+- [ ] **Fase siguiente — PDF:** rellenar `monthly_reports.pdf_url`. El camino corto es reutilizar `informePdf.ts` (jsPDF, ya genera el PDF diario en cliente) desde `AuditMonth`, en vez del HTML→PDF en n8n que bloqueó esto en agosto.
 - [ ] Añadir hoteles: la routine ya itera todos los hoteles activos; falta la UI de selección de hotel activo (ver también Módulo de Auditoría).
+- [ ] `getSubmissionHistory` tiene `limit = 60`: con 3 partes diarios, `AuditHistory` solo ve ~20 días de histórico, así que la lista de meses se queda corta. Independiente del informe, pero conviene arreglarlo.
+- [ ] `AuditMonth` muestra el total de cada parte leyendo `totales.general`, que **no existe en el cuadrador**: esos partes nunca muestran total. `audit_daily.valor` ya lo resuelve bien; sería cuestión de leer de ahí.
 
 ## Ideas / futuro
 
