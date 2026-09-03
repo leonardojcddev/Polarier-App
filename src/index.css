@@ -114,6 +114,26 @@
     border-color: hsl(var(--primary-foreground) / 0.25);
   }
 
+  /* Identidad Polarier en el dashboard de auditoría.
+     El azul marino y el azul de cabecera se mantienen en ambos temas: los tokens
+     de sidebar/primary viran demasiado en oscuro y la banda perdía la marca. */
+  .polarier-band {
+    background-color: hsl(231 50% 28%);
+    color: #fff;
+  }
+  :root.dark .polarier-band {
+    background-color: hsl(231 46% 22%);
+  }
+
+  .polarier-head {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+  :root.dark .polarier-head {
+    background-color: hsl(231 42% 30%);
+    color: #fff;
+  }
+
   .chat-bg {
     background-image: var(--chat-bg-mobile);
     background-size: cover;

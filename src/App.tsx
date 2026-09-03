@@ -8,6 +8,7 @@ import { RoleProvider, useRole } from "@/context/RoleContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import Index from "./pages/Index";
 import AuditLayout from "./components/audit/AuditLayout";
+import AuditDashboard from "./pages/audit/AuditDashboard";
 import AuditHome from "./pages/audit/AuditHome";
 import AuditForm from "./pages/audit/AuditForm";
 import AuditHistory from "./pages/audit/AuditHistory";
@@ -87,7 +88,8 @@ const App = () => (
 
                 {/* Módulo de auditoría (solo auditores) */}
                 <Route element={<AuditorRoute><AuditLayout /></AuditorRoute>}>
-                  <Route path="/auditoria" element={<AuditHome />} />
+                  <Route path="/auditoria" element={<AuditDashboard />} />
+                  <Route path="/auditoria/formularios" element={<AuditHome />} />
                   <Route path="/auditoria/formulario/:defId" element={<AuditForm />} />
                   <Route path="/auditoria/historico" element={<AuditHistory />} />
                   <Route path="/auditoria/historico/:anioMes" element={<AuditMonth />} />

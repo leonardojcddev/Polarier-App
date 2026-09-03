@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Menu, ClipboardList, Clock, LogOut, Sun, Moon } from "lucide-react";
+import { Menu, ClipboardList, Clock, LayoutDashboard, LogOut, Sun, Moon } from "lucide-react";
 import polarierLogo from "@/assets/polarier-logo.png";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useRole } from "@/context/RoleContext";
 
 const navItems = [
-  { label: "Formularios de Control", icon: ClipboardList, path: "/auditoria" },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/auditoria" },
+  { label: "Formularios de Control", icon: ClipboardList, path: "/auditoria/formularios" },
   { label: "Histórico", icon: Clock, path: "/auditoria/historico" },
 ];
 
@@ -69,10 +70,14 @@ const AuditLayout = () => {
 
         <nav className="flex-1 flex flex-col gap-0.5 px-2 overflow-y-auto">
           {navItems.map((item) => {
+            // "Formularios de Control" queda marcado también al rellenar un parte
+            // (`/auditoria/formulario/:defId`, en singular).
             const active =
               item.path === "/auditoria"
                 ? location.pathname === "/auditoria"
-                : location.pathname.startsWith(item.path);
+                : item.path === "/auditoria/formularios"
+                  ? location.pathname.startsWith("/auditoria/formulario")
+                  : location.pathname.startsWith(item.path);
             return (
               <button
                 key={item.path}
