@@ -7,6 +7,7 @@ import { getFormDefinitions, getSubmission, FormDefinition } from "@/services/au
 const hoy = () =>
   new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+/** Formularios del día (`/auditoria/formularios`). El inicio del módulo es el dashboard. */
 const AuditHome = () => {
   const navigate = useNavigate();
   const { activeHotel, loading: roleLoading } = useRole();

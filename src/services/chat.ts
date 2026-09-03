@@ -172,7 +172,11 @@ const extractTextContent = (data: unknown): string | null => {
       }
     }
     // Priority keys for text content
-    const keys = ['respuesta', 'response', 'message', 'text', 'content', 'output', 'result', 'answer', 'reply'];
+    // 'output' va antes de 'message': el agente de n8n responde en 'output', mientras
+    // que 'message' es el campo que la propia app envia con el texto del usuario. Si un
+    // nodo arrastra el body original hasta la respuesta, priorizar 'message' devolveria
+    // al usuario su propio mensaje en vez de la contestacion.
+    const keys = ['respuesta', 'response', 'output', 'message', 'text', 'content', 'result', 'answer', 'reply'];
     for (const key of keys) {
       if (obj[key] && typeof obj[key] === 'string') return (obj[key] as string).trim();
     }

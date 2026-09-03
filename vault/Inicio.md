@@ -27,6 +27,7 @@ La aplicación está **desplegada y conectada**:
 **En qué punto vamos (módulo de auditoría):**
 - Formularios de control operativos: lencería, producción, cuadrador Lavatín (reestructurado a líneas por prenda con Producción prenda/kg automáticas).
 - Lencería: ubicaciones editables (añadir/quitar filas manuales) + catálogo fijo. El 2026-09-01 se añadieron al catálogo del Muthu: **Innova, Puesto médico, Ama de llaves**.
+- **Dashboard de control:** es la **pantalla de inicio del auditor** (`/auditoria`), con el avance del mes por hotel: acumulado frente a la dotación del hotel (sale del conteo de lencería), producción diaria con los días flojos resaltados y avisos explicados. Detalle en [[Modulo-Auditoria]].
 - **Informe mensual:** apartado por meses en la app (`AuditHistory` → `AuditMonth`), tablas `monthly_reports` + bucket `informes-mensuales` aplicadas. La generación la hará una **routine de Claude Desktop** el día 1 (usa el plan de Claude, no la API), vía MCP de Supabase; escribe el análisis en `monthly_reports.resumen` (markdown). Prompt y cron en [[Routine-Informe-Mensual]]. **Fase 1 sin PDF** (diferido a un workflow n8n). Hay una fila de PRUEBA de agosto 2026 en `monthly_reports` para validar la vista.
 - Último commit en `main`: `0899ffa`. Sin commitear: cambios de Android/APK y `settings.local.json` (aparte a propósito).
 

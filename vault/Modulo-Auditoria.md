@@ -15,7 +15,9 @@ Un usuario **auditor** entra en la app y ve **solo** su mundo (sin chat/document
 
 ## Navegación (layout propio)
 
-`AuditLayout` con sidebar reducido: **Formularios de Control** (`/auditoria`) e **Histórico** (`/auditoria/historico`). Muestra el hotel activo.
+`AuditLayout` con sidebar reducido: **Dashboard** (`/auditoria`), **Formularios de Control** (`/auditoria/formularios`) e **Histórico** (`/auditoria/historico`). Muestra el hotel activo.
+
+**Pantalla de inicio:** `/auditoria` es el **dashboard**. Un auditor puro que inicia sesión cae en `/lobby`, y `NonAuditorGate` lo redirige a `/auditoria`, así que el dashboard es lo primero que ve. (Una cuenta con rol auditor *y además* otro rol sigue entrando por el lobby: tiene chat.)
 
 ## Formularios (3 tipos)
 
@@ -54,8 +56,11 @@ src/components/audit/
   AuditLayout.tsx            ← layout del auditor (sidebar sin chat)
   LenceriaMatrix.tsx         ← matriz de lencería
   LineasTable.tsx            ← tabla de líneas por vale (producción/cuadrador)
+  DashboardControl.tsx       ← dashboard por hotel y mes (recharts)
+src/lib/dashboard.ts         ← lógica del dashboard (series, acumulado, alertas)
 src/pages/audit/
-  AuditHome.tsx              ← formularios del día
+  AuditDashboard.tsx         ← inicio del auditor (/auditoria)
+  AuditHome.tsx              ← formularios del día (/auditoria/formularios)
   AuditForm.tsx              ← rellena un formulario (render por tipo)
   AuditHistory.tsx           ← histórico (entra al formulario, descarga PDF)
 ```
@@ -65,6 +70,19 @@ src/pages/audit/
 - Lista las submissions del usuario (más recientes primero) con fecha y total.
 - **Clic en una entrada abre el formulario:** si es de hoy → editable; si es de un día pasado → **solo lectura** (`?fecha=YYYY-MM-DD`).
 - Botón de **ver informe**: abre la vista previa del informe y permite descargar el PDF.
+
+## Dashboard de control (pantalla de inicio del auditor)
+
+`/auditoria` → `AuditDashboard.tsx`, que solo monta `DashboardControl`. Un dashboard por **hotel** y por **mes**, siempre con **datos reales** de Supabase (no hay datos de ejemplo en el código).
+
+- **Idea de fondo:** las tablas son acumulativas. El mes empieza en 0 y debe terminar con toda la **dotación del hotel** (total de prendas) lavada. El dashboard mide ese avance.
+- **De dónde sale la dotación:** del formulario de **lencería** (el conteo de inventario más alto del mes, `totales.general`). Si no hay lencería rellenada, se puede fijar a mano en el filtro "Dotación del hotel" y el dashboard lo explica en vez de inventarse un objetivo.
+- **Fuente del acumulado:** el formulario de producción con más días registrados (Control de Producción o Cuadrador Lavatín); se puede cambiar con un selector.
+- **Qué muestra:** KPIs (avance %, día típico, cierre previsto, días registrados), barra de avance con marca del *ritmo ideal de hoy*, gráfica de **acumulado vs. ritmo ideal vs. dotación**, gráfica de **producción diaria** con barras coloreadas por desviación, y comparativa de líneas por formulario.
+- **Avisos ("Qué vigilar"):** cada día se compara con la **mediana** de los días con producción del mes (no la media: así un día raro no arrastra el umbral; hacen falta ≥3 días para tener referencia). Umbrales: <75 % → aviso, <50 % → prioridad alta, >150 % → pico. También avisa de días pasados **sin parte**, de partes en **borrador** y de si el **ritmo global no llega** a la dotación. Cada aviso trae explicación en lenguaje llano + "qué revisar"; al pulsarlo se selecciona el día y se puede abrir el formulario de esa fecha.
+- **Identidad visual:** el mismo lenguaje que el informe (`InformePreview`): banda de cabecera azul marino con el **logo Polarier** y filete dorado, franjas de sección azules con icono dorado, filete dorado en las tarjetas de KPI y gráficas en azul primario + dorado (`accent`). Las barras del día: azul = normal, naranja = por debajo, rojo = muy por debajo, **dorado = pico**. Utilidades `.polarier-band` y `.polarier-head` en `src/index.css` (junto a `.tbl-head`): fijan el azul de marca en **ambos temas**, porque los tokens `--sidebar-bg`/`--primary` viran demasiado en oscuro y la cabecera se perdía contra el fondo.
+- **Código:** `src/lib/dashboard.ts` (lógica pura: series, acumulado, alertas) + `src/components/audit/DashboardControl.tsx` (vista, recharts). Tests en `src/test/dashboard.test.ts` y `src/test/DashboardControl.test.tsx`.
+- Lee `totales` de cada submission, así que **no hace falta migración**: cuadrador → `prenda`/`kg`, vales/líneas → `porColumna.produccion`, lencería → `general`.
 
 ## Informe (PDF en cliente)
 
