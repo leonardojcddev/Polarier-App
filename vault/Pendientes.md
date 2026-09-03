@@ -59,7 +59,8 @@ Ver [[Routine-Informe-Mensual]] para el diseño completo y el prompt.
 
 **Después:**
 
-- [ ] **Fase siguiente — PDF:** rellenar `monthly_reports.pdf_url`. El camino corto es reutilizar `informePdf.ts` (jsPDF, ya genera el PDF diario en cliente) desde `AuditMonth`, en vez del HTML→PDF en n8n que bloqueó esto en agosto.
+- [x] **PDF y correo del informe mensual** (2026-09-03): con el informe hecho salen «Descargar» y «Enviar por correo» en vez de «Regenerar». Reutiliza el PDF y el correo del informe diario vía `src/lib/informeMensual.ts`. Ver [[Routine-Informe-Mensual]].
+- [ ] Decidir si se retiran `monthly_reports.pdf_url`, el bucket `informes-mensuales` (migración 005) y el botón «Abrir PDF»: el PDF se genera en cliente, así que ya no hacen falta. De momento se quedan, sin uso.
 - [ ] Añadir hoteles: la routine ya itera todos los hoteles activos; falta la UI de selección de hotel activo (ver también Módulo de Auditoría).
 - [ ] `getSubmissionHistory` tiene `limit = 60`: con 3 partes diarios, `AuditHistory` solo ve ~20 días de histórico, así que la lista de meses se queda corta. Independiente del informe, pero conviene arreglarlo.
 - [ ] `AuditMonth` muestra el total de cada parte leyendo `totales.general`, que **no existe en el cuadrador**: esos partes nunca muestran total. `audit_daily.valor` ya lo resuelve bien; sería cuestión de leer de ahí.

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown, Wand2 } from "lucide-react";
+import { Loader2, FileText, Download, CheckCircle2, Circle, ChevronRight, ArrowLeft, Sparkles, FileDown, Wand2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
 import {
@@ -16,7 +16,10 @@ import {
   MonthlyReport,
 } from "@/services/audit";
 import { buildInforme, Informe } from "@/lib/informe";
+import { buildInformeMensual, periodoInforme } from "@/lib/informeMensual";
+import { descargarInformePdf } from "@/lib/informePdf";
 import InformePreview from "@/components/audit/InformePreview";
+import EnviarCorreoModal from "@/components/audit/EnviarCorreoModal";
 
 const NOMBRES_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -54,9 +57,28 @@ const AuditMonth = () => {
   const [informeOpen, setInformeOpen] = useState(false);
   const [informeLoading, setInformeLoading] = useState(false);
   const [informeFecha, setInformeFecha] = useState<string>("");
+  const [descargandoMensual, setDescargandoMensual] = useState(false);
+  const [correoMensualOpen, setCorreoMensualOpen] = useState(false);
 
   const [anio, mes] = anioMes.split("-").map(Number);
   const tituloMes = mes >= 1 && mes <= 12 ? `${NOMBRES_MES[mes - 1]} ${anio}` : anioMes;
+
+  // El informe mensual traducido a la misma estructura `Informe` que usan el PDF
+  // y el envío por correo, para no duplicar ninguno de los dos.
+  const informeMensual = useMemo(
+    () =>
+      reporte && activeHotel
+        ? buildInformeMensual({
+            reporte,
+            hotel: activeHotel.nombre,
+            polo: activeHotel.polo?.nombre ?? undefined,
+          })
+        : null,
+    [reporte, activeHotel]
+  );
+  // Si el estado dice "listo" pero no hay texto que enviar, se sigue ofreciendo
+  // generarlo en vez de dejar la caja sin ningún botón.
+  const mensualListo = reporte?.estado === "listo" && informeMensual !== null;
 
   useEffect(() => {
     if (!activeHotel || !anio || !mes) return;
@@ -152,6 +174,20 @@ const AuditMonth = () => {
     }
   };
 
+  // Descarga el informe mensual como PDF, generado en el cliente igual que el
+  // de los partes diarios (no depende de `pdf_url` ni de n8n).
+  const descargarMensual = async () => {
+    if (!informeMensual || !reporte) return;
+    setDescargandoMensual(true);
+    try {
+      await descargarInformePdf(informeMensual, periodoInforme(reporte));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo generar el PDF");
+    } finally {
+      setDescargandoMensual(false);
+    }
+  };
+
   // Abre el PDF del informe mensual (URL firmada del bucket privado).
   const abrirPdfMensual = async () => {
     if (!reporte?.pdf_url) return;
@@ -206,7 +242,26 @@ const AuditMonth = () => {
                   Abrir PDF
                 </button>
               )}
-              {!enCurso && (
+              {!enCurso && mensualListo && (
+                <>
+                  <button
+                    onClick={descargarMensual}
+                    disabled={descargandoMensual}
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    {descargandoMensual ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                    Descargar
+                  </button>
+                  <button
+                    onClick={() => setCorreoMensualOpen(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium rounded-lg bg-secondary text-secondary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity"
+                  >
+                    <Mail size={14} />
+                    Enviar por correo
+                  </button>
+                </>
+              )}
+              {!enCurso && !mensualListo && (
                 <button
                   onClick={pedirInforme}
                   disabled={pidiendo || items.length === 0}
@@ -218,7 +273,7 @@ const AuditMonth = () => {
                   className="flex items-center gap-1.5 text-xs font-medium rounded-lg border border-primary/40 text-primary px-3 py-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
                 >
                   {pidiendo ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {reporte?.estado === "listo" ? "Regenerar" : "Generar informe"}
+                  Generar informe
                 </button>
               )}
             </div>
@@ -318,6 +373,14 @@ const AuditMonth = () => {
           </div>
         )}
       </div>
+
+      {correoMensualOpen && informeMensual && reporte && (
+        <EnviarCorreoModal
+          informe={informeMensual}
+          fecha={periodoInforme(reporte)}
+          onClose={() => setCorreoMensualOpen(false)}
+        />
+      )}
 
       {informeOpen && (
         <InformePreview

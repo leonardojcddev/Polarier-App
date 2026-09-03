@@ -17,8 +17,24 @@ const DORADO_TX: [number, number, number] = [91, 74, 0];
 const GRIS: [number, number, number] = [110, 110, 110];
 
 // Carga un asset (URL de Vite) a dataURL PNG para incrustarlo en el PDF.
+//
+// Se resuelve a `null` si algo va mal: el PDF sale sin logo, que es mejor que no
+// salir. El temporizador existe porque si la imagen no dispara ni `onload` ni
+// `onerror` (pasa en entornos sin carga real de imágenes, y podría pasar con un
+// asset roto) la promesa se quedaría pendiente para siempre y el botón girando.
+const LOGO_TIMEOUT_MS = 3000;
+
 const cargarLogo = (): Promise<{ data: string; w: number; h: number } | null> =>
   new Promise((resolve) => {
+    let resuelto = false;
+    const acabar = (v: { data: string; w: number; h: number } | null) => {
+      if (resuelto) return;
+      resuelto = true;
+      clearTimeout(temporizador);
+      resolve(v);
+    };
+    const temporizador = setTimeout(() => acabar(null), LOGO_TIMEOUT_MS);
+
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -26,15 +42,15 @@ const cargarLogo = (): Promise<{ data: string; w: number; h: number } | null> =>
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return resolve(null);
+      if (!ctx) return acabar(null);
       ctx.drawImage(img, 0, 0);
       try {
-        resolve({ data: canvas.toDataURL("image/png"), w: img.naturalWidth, h: img.naturalHeight });
+        acabar({ data: canvas.toDataURL("image/png"), w: img.naturalWidth, h: img.naturalHeight });
       } catch {
-        resolve(null);
+        acabar(null);
       }
     };
-    img.onerror = () => resolve(null);
+    img.onerror = () => acabar(null);
     img.src = polarierLogo;
   });
 
@@ -108,6 +124,62 @@ export const construirInformePdf = async (informe: Informe): Promise<jsPDF> => {
     y += Math.ceil(informe.campos.length / 3) * 5.5 + 3;
   }
 
+  // --- Secciones de texto -----------------------------------------------------
+  // Solo las usa el informe mensual (prosa de la IA). Los partes diarios no
+  // traen `secciones`, así que este bloque no les afecta.
+  if (informe.secciones?.length) {
+    const anchoUtil = pageW - margin * 2;
+    const altoPag = doc.internal.pageSize.getHeight();
+    // Salta de página si no cabe, dejando hueco al pie.
+    const asegurar = (necesario: number) => {
+      if (y + necesario > altoPag - 16) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    for (const sec of informe.secciones) {
+      if (sec.titulo) {
+        asegurar(11);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(...AZUL);
+        doc.text(sec.titulo, margin, y + 4);
+        y += 7;
+      }
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(40, 40, 40);
+
+      for (const parrafo of sec.parrafos ?? []) {
+        for (const linea of doc.splitTextToSize(parrafo, anchoUtil) as string[]) {
+          asegurar(5);
+          doc.text(linea, margin, y + 3.5);
+          y += 4.6;
+        }
+        y += 2;
+      }
+
+      for (const vineta of sec.vinetas ?? []) {
+        const lineas = doc.splitTextToSize(vineta, anchoUtil - 5) as string[];
+        lineas.forEach((linea, i) => {
+          asegurar(5);
+          if (i === 0) {
+            doc.setTextColor(...AZUL);
+            doc.text("•", margin + 1, y + 3.5);
+            doc.setTextColor(40, 40, 40);
+          }
+          doc.text(linea, margin + 5, y + 3.5);
+          y += 4.6;
+        });
+        y += 1.5;
+      }
+
+      y += 3;
+    }
+  }
+
   // --- Tablas -----------------------------------------------------------------
   for (const tabla of informe.tablas) {
     if (tabla.titulo) {
@@ -145,7 +217,7 @@ export const construirInformePdf = async (informe: Informe): Promise<jsPDF> => {
     y = doc.lastAutoTable.finalY + 5;
   }
 
-  if (informe.tablas.length === 0) {
+  if (informe.tablas.length === 0 && !informe.secciones?.length) {
     doc.setFontSize(10);
     doc.setTextColor(...GRIS);
     doc.text("Este informe no contiene datos.", margin, y + 4);
