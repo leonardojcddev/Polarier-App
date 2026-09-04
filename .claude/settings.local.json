@@ -13,7 +13,6 @@
       "Bash(~/.bun/bin/bun run *)",
       "PowerShell($env:PATH = \"$env:USERPROFILE\\\\.bun\\\\bin;$env:PATH\"; Set-Location \"c:\\\\Trabajo\\\\Polarier-Auto\"; bun run build 2>&1 | Select-Object -Last 30)",
       "PowerShell(Get-Command bun -ErrorAction SilentlyContinue)",
-      "Bash(curl -s -H \"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOGJlZTc1NC0yOWI0LTQ1MDEtOTQ4YS05ODFlMGZlNTY1ZmMiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiMjU5ZTgwZDktZGI2Yy00ZjcxLWFhZTItZWM5MzRkYjU3Mjc1IiwiaWF0IjoxNzc3NDQ2MjMzfQ.4FXSaeddRdURy2IkYiaRJ1vKn_AoFXe6RdDpFh8vaH4\" \"https://automate-cuba24.app.n8n.cloud/api/v1/workflows\")",
       "Bash(python3 -m json.tool)",
       "Bash(magick --version)",
       "Bash(convert --version)",
@@ -92,7 +91,9 @@
       "Bash(break)",
       "Bash(echo \"tsc exit: $?\")",
       "Bash(rm -f scripts/informe-mensual.mjs scripts/README.md)",
-      "Bash(rmdir scripts *)"
+      "Bash(rmdir scripts *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ],
     "additionalDirectories": [
       "C:\\Trabajo\\Polarier-Auto\\public\\backgrounds"
