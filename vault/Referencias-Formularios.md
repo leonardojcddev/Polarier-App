@@ -11,8 +11,9 @@ Control de versiones funcional: qué Excel original sirvió de referencia, qué 
 - **Archivo original:** `CONTROL LENCERÍA MUTHU AGOSTO.xlsx`
 - **Módulo:** formulario tipo `lenceria` → `LenceriaMatrix.tsx`
 - **Estructura original:** 31 hojas (una por día del mes). Cada hoja = matriz **Ubicación (filas) × Prenda (columnas)** con totales de fila y columna.
-  - Ubicaciones: Lavandería, Alm. Sucio, Alm. Limpio, Piso 24, Office 24, Piso 25, Office 25, Piso 26, Office 26, Spa-1, Spa-2.
+  - Ubicaciones: Lavandería, Alm. Sucio, Alm. Limpio, Piso 24, Office 24, Piso 25, Office 25, Piso 26, Office 26, Spa-1, Spa-2. Añadidas después: Innova, Puesto médico, Ama de llaves (2026-09-01) y **Piso 10, Piso 11** (2026-09-17, de la hoja de dotación).
   - Prendas: Sábana personal, Sábana king, Fundas, Toalla baño, Toalla mano, Alfombrín, Toallas faciales, Toalla piscina.
+- **Dotación (hoja «CONTROL DE ALMACÉN», 2026-09-17):** la misma matriz con el stock fijo del hotel, **2.877 prendas**. Va a la tabla `dotacion_lenceria` (migración 007) y es lo que precarga cada parte diario. Ver [[Modulo-Auditoria]].
 - **Diferencias con la app:**
   - Una hoja por día → **una submission por día** (tabla `form_submissions`, no 31 pestañas).
   - Totales calculados **en vivo** en el frontend (no fórmulas de Excel).

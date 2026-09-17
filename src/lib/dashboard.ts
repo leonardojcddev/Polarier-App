@@ -57,7 +57,8 @@ export type TipoAlerta =
   | "borrador"
   | "ritmo_bajo"
   | "ritmo_alto"
-  | "sin_objetivo";
+  | "sin_objetivo"
+  | "inventario_desviado";
 
 export interface Alerta {
   id: string;
@@ -96,6 +97,11 @@ export interface ResumenDashboard {
   diasCompletos: number;
   diasMes: number;
   kgAcumulados: number;
+  /** Último conteo de lencería del mes (inventario), si lo hay. */
+  ultimoInventario: number | null;
+  fechaInventario: string | null;
+  /** Conteo − dotación fija del hotel. Solo cuando existe la dotación en tabla. */
+  diferenciaInventario: number | null;
 }
 
 export interface Dashboard {
@@ -110,6 +116,8 @@ export interface Dashboard {
   fuenteId: string | null;
   objetivo: number | null;
   objetivoOrigen: string;
+  /** Dotación fija del hotel (tabla `dotacion_lenceria`), o null si no está cargada. */
+  dotacionHotel: number | null;
   curva: PuntoAcumulado[];
   resumen: ResumenDashboard;
   alertas: Alerta[];
@@ -209,8 +217,13 @@ export interface BuildDashboardParams {
   hoy?: string;
   /** Formulario elegido como fuente del acumulado; si no, se elige el que más datos tenga. */
   fuenteId?: string | null;
-  /** Dotación del hotel introducida a mano; si no, se deduce del formulario de lencería. */
+  /** Dotación del hotel introducida a mano; manda sobre todo lo demás. */
   objetivoManual?: number | null;
+  /**
+   * Dotación fija del hotel (suma de `dotacion_lenceria`). Es el objetivo por
+   * defecto; si no está cargada, se deduce del formulario de lencería.
+   */
+  dotacion?: number | null;
 }
 
 export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
@@ -221,7 +234,9 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
     mes,
     hoy = new Date().toISOString().slice(0, 10),
     objetivoManual = null,
+    dotacion = null,
   } = params;
+  const dotacionHotel = dotacion && dotacion > 0 ? dotacion : null;
 
   const nDias = diasDelMes(anio, mes);
   const prefijo = `${anio}-${pad2(mes)}`;
@@ -312,6 +327,9 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
   if (objetivoManual && objetivoManual > 0) {
     objetivo = objetivoManual;
     objetivoOrigen = "Dotación introducida manualmente.";
+  } else if (dotacionHotel) {
+    objetivo = dotacionHotel;
+    objetivoOrigen = "Dotación fija del hotel: el stock de lencería registrado por ubicación y prenda.";
   } else if (serieLenceria && serieLenceria.total > 0) {
     objetivo = serieLenceria.total;
     objetivoOrigen = `Dotación tomada del inventario más alto registrado en «${serieLenceria.nombre}» este mes.`;
@@ -319,6 +337,24 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
     objetivoOrigen =
       "Todavía no hay objetivo: se calcula con el total de prendas contado en el formulario de lencería. Rellénalo (o fija la dotación a mano) para ver el avance hacia el 100 %.";
   }
+
+  // --- Último conteo de lencería frente a la dotación -----------------------
+  // El stock del hotel no cambia: si el último conteo no cuadra con la dotación,
+  // faltan (o sobran) prendas en algún sitio y conviene saberlo antes del cierre.
+  let ultimoInventario: number | null = null;
+  let fechaInventario: string | null = null;
+  if (serieLenceria) {
+    for (let i = dias.length - 1; i >= 0; i--) {
+      const reg = dias[i].porForm[serieLenceria.defId];
+      if (reg && reg.valor > 0) {
+        ultimoInventario = reg.valor;
+        fechaInventario = dias[i].fecha;
+        break;
+      }
+    }
+  }
+  const diferenciaInventario =
+    dotacionHotel && ultimoInventario !== null ? ultimoInventario - dotacionHotel : null;
 
   // --- Curva acumulada -------------------------------------------------------
   let acc = 0;
@@ -371,6 +407,9 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
     diasCompletos,
     diasMes: nDias,
     kgAcumulados,
+    ultimoInventario,
+    fechaInventario,
+    diferenciaInventario,
   };
 
   return {
@@ -383,9 +422,19 @@ export const buildDashboard = (params: BuildDashboardParams): Dashboard => {
     fuenteId,
     objetivo,
     objetivoOrigen,
+    dotacionHotel,
     curva,
     resumen,
-    alertas: detectarAlertas({ dias, diaActual, fuente, resumen, objetivo, nDias }),
+    alertas: detectarAlertas({
+      dias,
+      diaActual,
+      fuente,
+      resumen,
+      objetivo,
+      nDias,
+      dotacionHotel,
+      serieLenceria: serieLenceria ?? null,
+    }),
     hayDatos: submissions.length > 0,
   };
 };
@@ -405,6 +454,9 @@ const UMBRAL_BAJO = 0.75; // por debajo del 75 % de la mediana → merece mirada
 const UMBRAL_MUY_BAJO = 0.5; // por debajo de la mitad → prioridad alta
 const UMBRAL_PICO = 1.5; // más del 150 % → pico que conviene entender
 const MIN_DIAS_REFERENCIA = 3;
+// Un conteo de lencería que se aleja más de un 2 % de la dotación fija deja de
+// ser un despiste de teclado y pasa a ser prendas que faltan (o sobran).
+const UMBRAL_INVENTARIO = 0.02;
 
 const pct = (n: number) => `${Math.round(n)} %`;
 
@@ -415,9 +467,49 @@ const detectarAlertas = (ctx: {
   resumen: ResumenDashboard;
   objetivo: number | null;
   nDias: number;
+  dotacionHotel: number | null;
+  serieLenceria: SerieForm | null;
 }): Alerta[] => {
-  const { dias, diaActual, fuente, resumen, objetivo, nDias } = ctx;
+  const { dias, diaActual, fuente, resumen, objetivo, nDias, dotacionHotel, serieLenceria } = ctx;
   const alertas: Alerta[] = [];
+
+  // Inventario frente a la dotación fija: no depende de la fuente de producción.
+  if (
+    dotacionHotel &&
+    serieLenceria &&
+    resumen.ultimoInventario !== null &&
+    resumen.diferenciaInventario !== null &&
+    resumen.diferenciaInventario !== 0
+  ) {
+    const dif = resumen.diferenciaInventario;
+    const ratio = Math.abs(dif) / dotacionHotel;
+    const faltan = dif < 0;
+    const fecha = resumen.fechaInventario ?? "";
+    const dia = dias.find((d) => d.fecha === fecha);
+    alertas.push({
+      id: "inventario-desviado",
+      tipo: "inventario_desviado",
+      severidad: faltan && ratio >= UMBRAL_INVENTARIO ? "media" : "info",
+      fecha: fecha || undefined,
+      dia: dia?.dia,
+      titulo: faltan
+        ? `Faltan ${fmtNum(Math.abs(dif))} prendas respecto a la dotación`
+        : `Sobran ${fmtNum(dif)} prendas respecto a la dotación`,
+      detalle: `El último conteo de «${serieLenceria.nombre}»${
+        dia ? ` (${dia.fechaLarga})` : ""
+      } suma ${fmtNum(resumen.ultimoInventario)} prendas, y la dotación fija del hotel es de ${fmtNum(
+        dotacionHotel
+      )}. La lencería solo circula entre ubicaciones, así que el total debería cuadrar: ${
+        faltan
+          ? "hay prendas que no aparecen en ninguna ubicación."
+          : "se han contado más prendas de las que tiene el hotel."
+      }`,
+      accion: faltan
+        ? "Repasa las ubicaciones con menos prendas de las que marca la dotación (el formulario las señala) y busca roturas, bajas o partidas en tránsito sin anotar."
+        : "Comprueba si alguna ubicación se contó dos veces o si entró lencería nueva que aún no está en la dotación.",
+    });
+  }
+
   if (!fuente) return alertas;
 
   const ref = resumen.medianaDiaria;

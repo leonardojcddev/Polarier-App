@@ -5,7 +5,9 @@ en la nube** que lee una capa de datos ya agregada y escribe el análisis en
 `monthly_reports`, disparada por cron el día 1 o por el botón de la app.
 
 > La routine NO vive en el repositorio: se configura en claude.ai/code/routines.
-> Aquí queda la especificación exacta y el prompt, para poder rehacerla.
+> Aquí queda la especificación exacta y el prompt, para poder rehacerla. Desde
+> Claude Code se puede leer y actualizar por API (herramienta `RemoteTrigger`,
+> skill `/schedule`): así se cambió el prompt el 2026-09-17.
 
 ## El problema que resolvió esta versión
 
@@ -31,8 +33,11 @@ audit_daily          1 fila por parte (~90/mes), plana, con nombres resueltos
 audit_daily_detalle  formato largo: prenda / ubicación / métrica / valor
         │  vistas
         ▼
-audit_mes        3 filas por hotel y mes
+audit_mes        3 filas por hotel y mes (+ dotacion_hotel)
 audit_mes_dias   serie diaria + mediana + clasificación   ──►  ~3 KB en total
+audit_mes_dotacion  dotación vs. último conteo, por ubicación × prenda
+        ▲
+        │  dotacion_lenceria (stock fijo del hotel, migración 007)
         │  conector MCP de Supabase
         ▼
 Routine claude.ai  ──►  upsert monthly_reports  ──►  AuditMonth.tsx
@@ -94,7 +99,7 @@ la app es una SPA de Vite y cualquier `VITE_*` acaba escrito en el JS público.
 | Repositorio | `leonardojcddev/Polarier-App` (las routines exigen al menos uno) |
 | Conectores | **solo el MCP de Supabase**. Por defecto se incluyen todos los conectores de la cuenta y la routine puede usar sus herramientas de escritura sin pedir permiso, así que conviene dejar solo el que hace falta |
 | Modelo | `claude-sonnet-5` |
-| Trigger 1 | Schedule, cron `23 7 * * *` — pasada diaria: vacía la cola y, si es día 1, genera el mes anterior |
+| Trigger 1 | Schedule. Se creó con cron `23 7 * * *` (pasada diaria); el 2026-09-17 se comprobó por API que está en **`1 0 1 * *`** (día 1 a las 00:01 UTC). Con el cron mensual, la cola solo se vacía sola el día 1; el resto depende del trigger de API |
 | Trigger 2 | **API** — pendiente: *Add another trigger* → API → *Generate token*. Copiar URL y token |
 
 Qué queda por hacer a mano en la web:
@@ -182,6 +187,15 @@ select * from audit_mes_dias where hotel_id = '<hotel_id>' and periodo = '<AAAA-
  order by tipo, fecha;
 ```
 
+Para saber dónde faltan o sobran prendas respecto a la dotación fija del hotel (por ubicación y prenda, frente al último conteo de lencería del mes):
+
+```sql
+select ubicacion, prenda, dotacion, contado, diferencia
+from audit_mes_dotacion
+where hotel_id = '<hotel_id>' and periodo = '<AAAA-MM>' and diferencia <> 0
+order by diferencia, ubicacion, prenda;
+```
+
 Si necesitas el desglose por prenda (por ejemplo para explicar dónde se concentran las manchas o las roturas):
 
 ```sql
@@ -195,7 +209,10 @@ order by prenda, metrica;
 Cómo leer las vistas:
 
 - `audit_mes` trae una fila por tipo de formulario (`lenceria`, `produccion`, `cuadrador`).
-- `total_valor` es la producción del mes en prendas — **salvo en `lenceria`, donde es el INVENTARIO más alto del mes (la dotación del hotel), no una suma**.
+- `total_valor` es la producción del mes en prendas — **salvo en `lenceria`, donde es el INVENTARIO más alto del mes contado en los partes, no una suma**.
+- `dotacion_hotel` (en `audit_mes` y `audit_mes_dias`) es la **dotación fija del hotel**: el stock de lencería registrado por ubicación y prenda. La lencería no se consume, solo circula entre ubicaciones, así que es el objetivo del mes y el conteo debería cuadrar con ella. Si es null, el hotel no tiene dotación cargada: usa entonces `max_inventario` de lencería como referencia y dilo.
+- `max_inventario` es lo que se CONTÓ en el parte de lencería. `diferencia_dotacion` (en `audit_mes_dias`, solo lencería) es conteo del día − dotación: negativo = faltan prendas, positivo = sobran.
+- `audit_mes_dotacion` baja esa diferencia a ubicación × prenda, con el último conteo del mes.
 - `audit_mes_dias` es la serie diaria. `clasificacion` ya viene calculada contra la mediana del mes: `muy_bajo` (por debajo del 50 %), `bajo` (por debajo del 75 %), `pico` (por encima del 150 %), `normal`, `sin_datos`.
 - `borradores` son partes que nunca se cerraron: sus cifras pueden estar a medias.
 - `dias_con_parte` frente a `dias_mes` dice cuántos días quedaron sin registrar.
@@ -205,7 +222,8 @@ Cómo leer las vistas:
 *4.4 Redacta el informe*, dirigido al responsable del almacén del hotel. Debe cubrir:
 
 - volumen del mes: producción total, kg, días con parte frente a días del mes;
-- avance frente a la dotación (el `max_inventario` de lencería), si la hay;
+- avance frente a la dotación del hotel (`dotacion_hotel`; si es null, el `max_inventario` de lencería), si la hay;
+- inventario frente a la dotación: si el último conteo de lencería no cuadra con `dotacion_hotel`, cuántas prendas faltan o sobran y en qué ubicaciones y prendas se concentra la diferencia (`audit_mes_dotacion`). Si cuadra, dilo en una frase;
 - los días que se salen de lo normal, citando la fecha y cuánto se desvían, y qué conviene comprobar en cada caso;
 - borradores sin cerrar, si los hay;
 - pérdidas: faltantes, roturas, manchas y pendientes, con el desglose por prenda cuando aporte algo.
@@ -220,14 +238,14 @@ update monthly_reports set
   resumen  = $j${"analisis": "…", "valoraciones": ["…", "…"]}$j$::jsonb,
   metricas = $j${"totalPartes": 0, "diasConParte": 0, "diasMes": 0,
                  "porFormulario": [{"tipo": "…", "partes": 0, "total": 0, "kg": 0}],
-                 "dotacion": 0}$j$::jsonb,
+                 "dotacion": 0, "inventarioContado": 0, "diferenciaDotacion": 0}$j$::jsonb,
   generado_at = now()
 where id = '<id>';
 ```
 
 `analisis` es el texto largo en markdown. `valoraciones` es una lista de entre 3 y 6 frases accionables. Usa dollar-quoting (`$j$…$j$`) para no tener que escapar comillas dentro del JSON.
 
-`metricas` son los agregados que has usado, para poder auditar el informe después.
+`metricas` son los agregados que has usado, para poder auditar el informe después. `dotacion` es `dotacion_hotel` (o `max_inventario` si no hay dotación cargada), `inventarioContado` el último conteo de lencería del mes y `diferenciaDotacion` = `inventarioContado` − `dotacion` (0 si cuadra; omite las dos últimas si no hubo parte de lencería). La app pinta las tres en la cabecera del PDF.
 
 *4.6 Si algo falla en una entrada*, ponla en `estado='error'` y sigue con la siguiente. Un hotel roto no debe frenar a los demás.
 
@@ -240,6 +258,7 @@ where id = '<id>';
 | Pieza | Ruta |
 |---|---|
 | Capa de datos (tablas, trigger, vistas, cola) | `supabase/migrations/006_auditoria_datos_ia.sql` |
+| Dotación fija + vistas con dotación (`audit_mes`, `audit_mes_dias`, `audit_mes_dotacion`) | `supabase/migrations/007_dotacion_lenceria.sql` |
 | Relé del disparo | `supabase/functions/disparar-informe-mensual/index.ts` |
 | Solicitud desde la app | `solicitarInformeMensual()` en `src/services/audit.ts` |
 | Botón y polling | `src/pages/audit/AuditMonth.tsx` |
@@ -290,6 +309,18 @@ consulta, ni existe la tentación de un `LIKE '2026-07%'` sobre una fecha.
 - [ ] **Sin probar: la mitad cliente.** Pulsar el botón logueado para ejercitar
       `functions.invoke` → `/fire` con un JWT real.
 - [ ] Borrar la fila de PRUEBA de agosto 2026 en `monthly_reports`.
+- [x] **Migración `007_dotacion_lenceria.sql` aplicada** (2026-09-17). Las vistas
+      `audit_mes` y `audit_mes_dias` ya traen `dotacion_hotel` (2.877 en el Muthu) y
+      existe `audit_mes_dotacion`. Con los datos actuales (el único parte de lencería
+      de agosto está a cero) la diferencia sale −2.877, que es lo esperado.
+- [x] **Prompt actualizado en la routine** (2026-09-17, por API con `RemoteTrigger`
+      desde Claude Code, sin pasar por la web). La routine lleva el prompt en texto
+      plano (sin negritas ni `##`); el de esta nota es el mismo contenido con formato
+      de lectura. Se conservaron conector de Supabase, modelo, entorno y estado.
+      **Ojo:** el cron real de la routine es `1 0 1 * *` (día 1 a las 00:01 UTC),
+      no el `23 7 * * *` diario que decía la tabla de montaje: alguien lo cambió
+      desde la web. Con eso, la cola solo se vacía sola una vez al mes; el resto del
+      tiempo depende del trigger de API que dispara el botón de la app.
 
 ## PDF y correo (hecho el 2026-09-03)
 

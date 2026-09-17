@@ -208,6 +208,19 @@ const InformeHoja = ({ informe }: { informe: Informe }) => (
                         </td>
                       ))}
                     </tr>
+                    {/* Filas extra de pie (Dotación / Diferencia en lencería), en dorado suave */}
+                    {(t.extras ?? []).map((fila, fi) => (
+                      <tr key={fi} className="font-semibold" style={{ backgroundColor: `${DORADO}22`, color: "#5b4a00" }}>
+                        {fila.map((celda, ci) => (
+                          <td
+                            key={ci}
+                            className={`border border-neutral-300 px-2 py-1 ${ci === 0 ? "text-left" : "text-center"}`}
+                          >
+                            {celda === "" || celda === undefined ? "" : celda}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   </tfoot>
                 )}
               </table>

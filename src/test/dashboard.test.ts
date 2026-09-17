@@ -163,6 +163,59 @@ describe("buildDashboard", () => {
     expect(d.objetivoOrigen).toContain("lencería");
   });
 
+  it("la dotación fija del hotel manda sobre el conteo de lencería, y la manual sobre todo", () => {
+    const subs = [prod("2026-06-01", 100), sub(DEF_LEN, "2026-06-01", { general: 2500 })];
+    const base = { submissions: subs, definitions: defs, anio: 2026, mes: 6, hoy: "2026-06-02" };
+
+    const conTabla = buildDashboard({ ...base, dotacion: 2877 });
+    expect(conTabla.objetivo).toBe(2877);
+    expect(conTabla.dotacionHotel).toBe(2877);
+    expect(conTabla.objetivoOrigen).toContain("Dotación fija");
+
+    const manual = buildDashboard({ ...base, dotacion: 2877, objetivoManual: 3000 });
+    expect(manual.objetivo).toBe(3000);
+
+    const sinTabla = buildDashboard({ ...base, dotacion: null });
+    expect(sinTabla.objetivo).toBe(2500);
+    expect(sinTabla.dotacionHotel).toBeNull();
+  });
+
+  it("avisa cuando el último conteo de lencería no cuadra con la dotación", () => {
+    const subs = [
+      prod("2026-06-01", 100),
+      sub(DEF_LEN, "2026-06-01", { general: 2877 }),
+      sub(DEF_LEN, "2026-06-03", { general: 2800 }), // faltan 77 (2,7 %)
+    ];
+    const d = buildDashboard({
+      submissions: subs,
+      definitions: defs,
+      anio: 2026,
+      mes: 6,
+      hoy: "2026-06-05",
+      dotacion: 2877,
+    });
+
+    expect(d.resumen.ultimoInventario).toBe(2800);
+    expect(d.resumen.fechaInventario).toBe("2026-06-03");
+    expect(d.resumen.diferenciaInventario).toBe(-77);
+    const alerta = d.alertas.find((a) => a.tipo === "inventario_desviado");
+    expect(alerta).toBeDefined();
+    expect(alerta?.severidad).toBe("media");
+    expect(alerta?.titulo).toContain("Faltan 77");
+
+    // Si el conteo cuadra, no hay aviso.
+    const ok = buildDashboard({
+      submissions: [prod("2026-06-01", 100), sub(DEF_LEN, "2026-06-01", { general: 2877 })],
+      definitions: defs,
+      anio: 2026,
+      mes: 6,
+      hoy: "2026-06-02",
+      dotacion: 2877,
+    });
+    expect(ok.alertas.some((a) => a.tipo === "inventario_desviado")).toBe(false);
+    expect(ok.resumen.diferenciaInventario).toBe(0);
+  });
+
   it("lee la producción del cuadrador desde totales.prenda y suma kg", () => {
     const defCuad: FormDefinition = {
       id: "def-cuad",

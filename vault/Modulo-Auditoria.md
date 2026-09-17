@@ -42,7 +42,18 @@ Ver [[Supabase]] para el detalle. Tablas: `polos_turisticos`, `hoteles`, `user_h
   - lencería: `{ [ubicacionId]: { [prendaId]: number } }`
   - producción/cuadrador: `{ lineas: [{ id, prenda, valores:{...}, observaciones? }] }`
 
-SQL: `supabase/migrations/001_audit_module.sql` (base), `002_forms_produccion_cuadrador.sql` (defs producción/cuadrador) y `003_polos_turisticos.sql` (polos + vínculo del hotel).
+SQL: `supabase/migrations/001_audit_module.sql` (base), `002_forms_produccion_cuadrador.sql` (defs producción/cuadrador), `003_polos_turisticos.sql` (polos + vínculo del hotel) y `007_dotacion_lenceria.sql` (dotación fija de lencería, ver abajo).
+
+## Dotación de lencería (stock fijo del hotel)
+
+**Idea de negocio (2026-09-17):** la cantidad de lencería de un hotel es **una** y no cambia. A lo largo del mes circula entre ubicaciones (pisos → office → almacén sucio → lavandería → almacén limpio → pisos) y al cierre tiene que volver a sumar lo mismo. Esa cifra, desglosada por ubicación × prenda, es la **dotación**, y viene de la hoja «CONTROL DE ALMACÉN» del Gran Muthu Habana: **2.877 prendas** (SP 515 · SK 125 · F 327 · TB 355 · TM 352 · TA 347 · TF 71 · TP 785). La hoja trae **Piso 10 y Piso 11**, que no estaban en el catálogo: la migración los añade y reordena las ubicaciones al orden de la hoja.
+
+- **Tabla `dotacion_lenceria`** (hotel, ubicación, prenda, cantidad). RLS: lectura con acceso al hotel; escritura solo `supervisor`/`admin` (`has_hotel_role()`). Hoy no hay UI para editarla: se cambia por SQL.
+- **Lógica pura en `src/lib/dotacion.ts`**: `precargarDesdeDotacion`, `compararConDotacion` (por prenda, por ubicación y total; `diferencia = contado − dotación`), `totalDotacion`, `fmtDiferencia`. Servicio: `getDotacionLenceria(hotelId)` en `audit.ts`, devuelve la misma forma que `data` (`{ubicacionId: {prendaId: n}}`).
+- **Formulario de lencería:** un parte nuevo **arranca precargado con la dotación** (ya no se teclea desde cero); el auditor ajusta lo que se movió. La matriz muestra un resumen «Dotación / Contado / Faltan-Sobran», la diferencia por fila (bajo el total de cada ubicación) y dos filas de pie, **Dotación** y **Diferencia**, por prenda. Botón «Restablecer a la dotación» para volver al punto de partida. Los partes de días pasados también muestran la comparación.
+- **Informe diario (pantalla + PDF):** en lencería, cabecera con «Dotación del hotel / Contado / Diferencia», columna **Dif.** por ubicación y filas de pie Dotación/Diferencia (`InformeTabla.extras`, en dorado suave).
+- **Dashboard:** el objetivo del mes es la dotación de la tabla (prioridad: manual > tabla > conteo más alto de lencería). Además compara el **último conteo de lencería** con la dotación y avisa (`inventario_desviado`): «media» si faltan más del 2 % (`UMBRAL_INVENTARIO`), «info» si no.
+- **Informe mensual:** las vistas exponen `dotacion_hotel` (`audit_mes`, `audit_mes_dias`), `diferencia_dotacion` diaria en lencería y la vista `audit_mes_dotacion` (dotación vs. último conteo del mes por ubicación × prenda). El prompt de la routine pide comparar y escribir `metricas.inventarioContado` / `metricas.diferenciaDotacion`, que `informeMensual.ts` pinta en la cabecera. Ver [[Routine-Informe-Mensual]].
 
 **Polos turísticos:** existen los 6 (La Habana, Varadero, Caibarién, Cayo Coco, Cayo Cruz, Holguín). Solo **La Habana** tiene hotel (Gran Muthu Habana); los demás están vacíos, listos para crecer. Ojo: la RLS solo hace visible un polo si el usuario accede a algún hotel suyo, así que los polos sin hoteles no aparecen aún en la app.
 
@@ -58,6 +69,7 @@ src/components/audit/
   LineasTable.tsx            ← tabla de líneas por vale (producción/cuadrador)
   DashboardControl.tsx       ← dashboard por hotel y mes (recharts)
 src/lib/dashboard.ts         ← lógica del dashboard (series, acumulado, alertas)
+src/lib/dotacion.ts          ← dotación fija de lencería (precarga, comparación)
 src/pages/audit/
   AuditDashboard.tsx         ← inicio del auditor (/auditoria)
   AuditHome.tsx              ← formularios del día (/auditoria/formularios)
@@ -76,7 +88,7 @@ src/pages/audit/
 `/auditoria` → `AuditDashboard.tsx`, que solo monta `DashboardControl`. Un dashboard por **hotel** y por **mes**, siempre con **datos reales** de Supabase (no hay datos de ejemplo en el código).
 
 - **Idea de fondo:** las tablas son acumulativas. El mes empieza en 0 y debe terminar con toda la **dotación del hotel** (total de prendas) lavada. El dashboard mide ese avance.
-- **De dónde sale la dotación:** del formulario de **lencería** (el conteo de inventario más alto del mes, `totales.general`). Si no hay lencería rellenada, se puede fijar a mano en el filtro "Dotación del hotel" y el dashboard lo explica en vez de inventarse un objetivo.
+- **De dónde sale la dotación:** de la tabla `dotacion_lenceria` (stock fijo del hotel, ver «Dotación de lencería»). Si el hotel no la tiene cargada, del formulario de **lencería** (el conteo más alto del mes, `totales.general`); y siempre se puede fijar a mano en el filtro "Dotación del hotel", que manda sobre todo lo demás. Sin ninguna de las tres, el dashboard lo explica en vez de inventarse un objetivo.
 - **Fuente del acumulado:** el formulario de producción con más días registrados (Control de Producción o Cuadrador Lavatín); se puede cambiar con un selector.
 - **Qué muestra:** KPIs (avance %, día típico, cierre previsto, días registrados), barra de avance con marca del *ritmo ideal de hoy*, gráfica de **acumulado vs. ritmo ideal vs. dotación**, gráfica de **producción diaria** con barras coloreadas por desviación, y comparativa de líneas por formulario.
 - **Avisos ("Qué vigilar"):** cada día se compara con la **mediana** de los días con producción del mes (no la media: así un día raro no arrastra el umbral; hacen falta ≥3 días para tener referencia). Umbrales: <75 % → aviso, <50 % → prioridad alta, >150 % → pico. También avisa de días pasados **sin parte**, de partes en **borrador** y de si el **ritmo global no llega** a la dotación. Cada aviso trae explicación en lenguaje llano + "qué revisar"; al pulsarlo se selecciona el día y se puede abrir el formulario de esa fecha.

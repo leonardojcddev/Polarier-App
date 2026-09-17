@@ -4,6 +4,42 @@ Registro de decisiones tomadas en el proyecto, con fecha y motivo. Lo más recie
 
 ---
 
+## 2026-09-17 — Dotación fija de lencería como dato maestro
+
+- **Contexto:** la lencería de un hotel es una cantidad fija que solo circula entre
+  ubicaciones (pisos, offices, almacenes, lavandería) y al cierre del mes tiene que
+  volver a sumar lo mismo. El auditor tecleaba esa matriz cada día desde cero, y el
+  dashboard deducía la «dotación» del conteo más alto del mes (o de un campo manual),
+  o sea, de un dato que el propio auditor podía haber contado mal.
+- **Decisión: la dotación es una tabla (`dotacion_lenceria`), no una deducción.** Una
+  fila por hotel + ubicación + prenda. Se cargó la hoja «CONTROL DE ALMACÉN» del Muthu
+  (2.877 prendas), con una comprobación en la propia migración que aborta si la suma no
+  cuadra con la hoja. Las ubicaciones Piso 10 y Piso 11, que la hoja trae y el catálogo
+  no tenía, se añaden y el catálogo se reordena al orden de la hoja.
+- **Decisión: el parte de lencería arranca precargado con la dotación** y el auditor
+  solo ajusta lo que se movió. La matriz muestra la comparación (por fila, por prenda y
+  en total) y un botón para volver a la dotación. Es lo que pidió el usuario: «eso evita
+  llenar a mano».
+- **Decisión: prioridad del objetivo en el dashboard: manual > tabla > conteo.** El
+  campo manual se conserva por si un mes hay que forzar otra cifra; sin tabla, el
+  comportamiento anterior sigue intacto (deducir del conteo más alto).
+- **Decisión: la comparación conteo ↔ dotación llega a todo lo que emite el módulo.**
+  Informe diario (cabecera, columna «Dif.», filas «Dotación» y «Diferencia»), dashboard
+  (aviso `inventario_desviado`, «media» si faltan más del 2 %) e informe mensual
+  (vistas `audit_mes.dotacion_hotel`, `audit_mes_dias.diferencia_dotacion` y
+  `audit_mes_dotacion` por ubicación × prenda; el prompt de la routine pide comparar y
+  guardar `inventarioContado` / `diferenciaDotacion` en `metricas`).
+- **Decisión: sin UI de edición por ahora.** La dotación cambia rara vez; se edita por
+  SQL. La RLS ya deja escribir a `supervisor`/`admin` (`has_hotel_role()`), así que
+  cuando haga falta pantalla no habrá que tocar permisos.
+- **Decisión: la app no depende de que la tabla exista.** Las tres pantallas que leen
+  la dotación tragan el error y siguen sin ella, para que el despliegue no se rompa si
+  la migración 007 todavía no se ha aplicado.
+- **Aplicación:** la migración se validó primero en una transacción revertida y se
+  aplicó el mismo día a petición del usuario (por convención las migraciones se
+  aplican con su visto bueno). El prompt de la routine se actualizó a continuación por API
+  (`RemoteTrigger`), sin pasar por la web. Ver [[Routine-Informe-Mensual]].
+
 ## 2026-09-03 — Informe mensual: capa de datos plana + routine en la nube
 
 - **Contexto:** con 3 partes diarios por hotel, un mes son ~90 filas de `form_submissions`

@@ -28,14 +28,17 @@ afecta a informes:
 | `monthly_reports` | Un informe por hotel + usuario + año + mes | `estado` (`pendiente`\|`generando`\|`listo`\|`error`), `resumen` jsonb, `metricas` jsonb, `pdf_url`, `generado_at`, **`solicitado_at`** |
 | `audit_daily` | Capa plana: 1 fila por parte, métricas normalizadas y nombres resueltos | `submission_id` (PK), `hotel_id`, `fecha`, `periodo`, `tipo`, `valor`, `kg`, `inventario`, `metricas` |
 | `audit_daily_detalle` | Formato largo: prenda / ubicación / métrica / valor | `submission_id`, `prenda`, `ubicacion`, `metrica`, `valor` |
+| `dotacion_lenceria` | Stock fijo de lencería del hotel por ubicación × prenda (2.877 en el Muthu). Precarga el parte de lencería y es la dotación del dashboard y del informe | `hotel_id`, `ubicacion_id`, `prenda_id`, `cantidad`; única por los tres. Escritura solo `supervisor`/`admin` vía `has_hotel_role(h, roles[])`. Migración `007` |
 
 Vistas (con `security_invoker = true`, imprescindible: una vista normal corre con
 los permisos de su dueño y **se salta la RLS**):
 
 | Vista | Grano |
 |---|---|
-| `audit_mes` | 1 fila por hotel + periodo + tipo de formulario |
-| `audit_mes_dias` | serie diaria con `mediana_mes`, `ratio_vs_mediana` y `clasificacion` |
+| `audit_mes` | 1 fila por hotel + periodo + tipo de formulario. Desde la 007 trae `dotacion_hotel` (stock fijo) junto a `max_inventario` (lo contado) |
+| `audit_mes_dias` | serie diaria con `mediana_mes`, `ratio_vs_mediana` y `clasificacion`; en lencería, `dotacion_hotel` y `diferencia_dotacion` (conteo − dotación) |
+| `audit_dotacion_hotel` | suma de `dotacion_lenceria` por hotel (apoyo de las otras dos) |
+| `audit_mes_dotacion` | dotación frente al **último** conteo de lencería del mes, por ubicación × prenda (`dotacion`, `contado`, `diferencia`). Solo hoteles/periodos con algún parte de lencería |
 
 `audit_daily` y `audit_daily_detalle` **no se escriben nunca a mano**: las mantiene
 el trigger `trg_audit_daily` sobre `form_submissions`, vía
