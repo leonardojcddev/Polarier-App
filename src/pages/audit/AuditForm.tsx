@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Save, CheckCircle2, Eye, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Save, CheckCircle2, Eye, FileText, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
 import { buildInforme } from "@/lib/informe";
+import { hayDotacion, precargarDesdeDotacion, type Dotacion } from "@/lib/dotacion";
 import InformePreview from "@/components/audit/InformePreview";
 import type { FormSubmission } from "@/services/audit";
 import {
@@ -12,6 +13,7 @@ import {
   saveSubmission,
   getPrendas,
   getUbicaciones,
+  getDotacionLenceria,
   FormDefinition,
   Prenda,
   Ubicacion,
@@ -70,6 +72,8 @@ const AuditForm = () => {
   const [def, setDef] = useState<FormDefinition | null>(null);
   const [prendas, setPrendas] = useState<Prenda[]>([]);
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  // Dotación fija del hotel (solo lencería): precarga el parte y sirve de referencia.
+  const [dotacion, setDotacion] = useState<Dotacion | null>(null);
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,12 +88,18 @@ const AuditForm = () => {
         const found = defs.find((d) => d.id === defId) ?? null;
         setDef(found);
 
-        const [pr, ub, sub] = await Promise.all([
+        const [pr, ub, sub, dot] = await Promise.all([
           getPrendas(activeHotel.id),
           getUbicaciones(activeHotel.id),
           getSubmission(defId, fecha),
+          // Sin dotación el parte funciona como siempre (matriz vacía, sin
+          // comparación), así que un fallo aquí no debe impedir cargarlo.
+          found?.tipo === "lenceria"
+            ? getDotacionLenceria(activeHotel.id).catch(() => null)
+            : Promise.resolve(null),
         ]);
         setPrendas(pr);
+        setDotacion(dot && hayDotacion(dot) ? dot : null);
 
         // Ubicaciones añadidas manualmente por el supervisor se guardan dentro de
         // data._ubicaciones (la BD solo tiene las fijas). Las fusionamos al cargar.
@@ -105,7 +115,11 @@ const AuditForm = () => {
           const campos = (found.config?.cabecera as CampoCabecera[]) ?? [];
           for (const c of campos) if (c.tipo === "fecha") cabeceraInicial[c.key] = fecha;
 
-          if (layout === "vales") {
+          if (found.tipo === "lenceria") {
+            // La lencería del hotel es fija y solo circula entre ubicaciones:
+            // el parte arranca con la dotación y el auditor ajusta lo que se movió.
+            setData(precargarDesdeDotacion(dot));
+          } else if (layout === "vales") {
             const prendasCfg = (found.config?.prendas as string[]) ?? [];
             setData({ cabecera: cabeceraInicial, vales: [nuevoVale(prendasCfg, "Vale 1")] } as ValesData);
           } else if (layout === "categorias") {
@@ -185,9 +199,20 @@ const AuditForm = () => {
       prendas,
       ubicaciones,
       prendasPeso,
+      dotacion,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [informeOpen, def, activeHotel, data, prendas, ubicaciones, prendasPeso, fecha, readOnly]);
+  }, [informeOpen, def, activeHotel, data, prendas, ubicaciones, prendasPeso, dotacion, fecha, readOnly]);
+
+  // Vuelve a dejar la matriz como la dotación (conserva las ubicaciones añadidas a mano).
+  const cargarDotacion = () => {
+    if (!dotacion) return;
+    setData((d: Record<string, unknown>) => ({
+      ...precargarDesdeDotacion(dotacion),
+      ...(d?._ubicaciones ? { _ubicaciones: d._ubicaciones } : {}),
+    }));
+    toast.success("Matriz restablecida a la dotación del hotel");
+  };
 
   const persist = async (estado: "borrador" | "completado") => {
     if (!activeHotel || !def) return;
@@ -266,6 +291,19 @@ const AuditForm = () => {
           </div>
         </div>
 
+        {def.tipo === "lenceria" && dotacion && !readOnly && (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={cargarDotacion}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Deja todas las casillas con la dotación fija del hotel"
+            >
+              <RotateCcw size={14} /> Restablecer a la dotación
+            </button>
+          </div>
+        )}
+
         {def.tipo === "lenceria" ? (
           <LenceriaMatrix
             ubicaciones={ubicaciones}
@@ -273,6 +311,7 @@ const AuditForm = () => {
             data={data as MatrixData}
             onChange={setData}
             readOnly={readOnly}
+            dotacion={dotacion}
             onAddUbicacion={() => {
               const nueva = { id: uid(), nombre: "", orden: -1 };
               setUbicaciones((prev) => {

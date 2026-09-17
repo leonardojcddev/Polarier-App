@@ -8,6 +8,7 @@ import {
   getFormDefinitions,
   getPrendas,
   getUbicaciones,
+  getDotacionLenceria,
   getMonthlyReport,
   getMonthlyReportPdfUrl,
   solicitarInformeMensual,
@@ -111,10 +112,15 @@ const AuditMonth = () => {
     setInforme(null);
     setInformeFecha(s.fecha);
     try {
-      const [prendas, ubicaciones] =
+      // Lencería: catálogos + dotación fija del hotel (para la comparación del informe).
+      const [prendas, ubicaciones, dotacion] =
         def.tipo === "lenceria"
-          ? await Promise.all([getPrendas(activeHotel.id), getUbicaciones(activeHotel.id)])
-          : [[], []];
+          ? await Promise.all([
+              getPrendas(activeHotel.id),
+              getUbicaciones(activeHotel.id),
+              getDotacionLenceria(activeHotel.id).catch(() => null),
+            ])
+          : [[], [], null];
       const prendasPeso =
         (def.config?.prendas_peso as typeof PRENDAS_PESO_DEFAULT) ?? PRENDAS_PESO_DEFAULT;
       setInforme(
@@ -126,6 +132,7 @@ const AuditMonth = () => {
           prendas,
           ubicaciones,
           prendasPeso,
+          dotacion,
         })
       );
     } catch (err) {

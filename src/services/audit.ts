@@ -70,6 +70,35 @@ export const getUbicaciones = async (hotelId: string): Promise<Ubicacion[]> => {
 };
 
 // -----------------------------------------------------------------------------
+// Dotación de lencería (stock fijo del hotel por ubicación × prenda)
+// -----------------------------------------------------------------------------
+export interface DotacionCelda {
+  ubicacion_id: string;
+  prenda_id: string;
+  cantidad: number;
+}
+
+/**
+ * Dotación del hotel en la misma forma que `data` del formulario de lencería:
+ * `{ [ubicacionId]: { [prendaId]: cantidad } }`. Vacío si el hotel no tiene
+ * dotación cargada (la app entonces no compara contra nada).
+ */
+export const getDotacionLenceria = async (
+  hotelId: string
+): Promise<Record<string, Record<string, number>>> => {
+  const { data, error } = await supabase
+    .from('dotacion_lenceria')
+    .select('ubicacion_id, prenda_id, cantidad')
+    .eq('hotel_id', hotelId);
+  if (error) throw error;
+  const dotacion: Record<string, Record<string, number>> = {};
+  for (const c of (data ?? []) as DotacionCelda[]) {
+    (dotacion[c.ubicacion_id] ??= {})[c.prenda_id] = Number(c.cantidad) || 0;
+  }
+  return dotacion;
+};
+
+// -----------------------------------------------------------------------------
 // Definiciones de formulario
 // -----------------------------------------------------------------------------
 export const getFormDefinitions = async (hotelId: string): Promise<FormDefinition[]> => {

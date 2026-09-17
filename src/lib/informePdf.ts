@@ -202,7 +202,13 @@ export const construirInformePdf = async (informe: Informe): Promise<jsPDF> => {
       margin: { left: margin, right: margin },
       head: [tabla.columnas],
       body: tabla.filas.map((f) => f.map((c) => (c === "" || c === undefined ? "—" : String(c)))),
-      foot: tabla.total ? [tabla.total.map((c) => (c === "" || c === undefined ? "" : String(c)))] : undefined,
+      // El pie lleva la fila de totales y, si las hay, las filas extra
+      // («Dotación» / «Diferencia» en lencería), que van en dorado suave.
+      foot: tabla.total
+        ? [tabla.total, ...(tabla.extras ?? [])].map((fila) =>
+            fila.map((c) => (c === "" || c === undefined ? "" : String(c)))
+          )
+        : undefined,
       theme: "grid",
       headStyles: { fillColor: DORADO_BG, textColor: DORADO_TX, fontStyle: "bold", fontSize: 8, halign: "center" },
       footStyles: { fillColor: AZUL, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8, halign: "center" },
@@ -213,6 +219,10 @@ export const construirInformePdf = async (informe: Informe): Promise<jsPDF> => {
       // La primera columna alineada a la izquierda; el resto centrado.
       didParseCell: (data) => {
         if (data.column.index !== 0) data.cell.styles.halign = "center";
+        if (data.section === "foot" && data.row.index > 0) {
+          data.cell.styles.fillColor = DORADO_BG;
+          data.cell.styles.textColor = DORADO_TX;
+        }
       },
     });
     // @ts-expect-error lastAutoTable lo añade el plugin

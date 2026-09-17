@@ -34,9 +34,11 @@ import {
   getFormDefinitions,
   getSubmissionHistory,
   getSubmissionsByMonth,
+  getDotacionLenceria,
   FormDefinition,
   FormSubmission,
 } from "@/services/audit";
+import { fmtDiferencia, totalDotacion } from "@/lib/dotacion";
 import {
   Alerta,
   COLOR_ESTADO,
@@ -262,6 +264,8 @@ const DashboardControl = () => {
   const [defs, setDefs] = useState<FormDefinition[]>([]);
   const [historico, setHistorico] = useState<FormSubmission[]>([]);
   const [subs, setSubs] = useState<FormSubmission[]>([]);
+  // Dotación fija del hotel (suma de `dotacion_lenceria`); null si no está cargada.
+  const [dotacionTotal, setDotacionTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMes, setLoadingMes] = useState(false);
 
@@ -279,13 +283,18 @@ const DashboardControl = () => {
     (async () => {
       setLoading(true);
       try {
-        const [d, h] = await Promise.all([
+        const [d, h, dot] = await Promise.all([
           getFormDefinitions(hotel.id),
           getSubmissionHistory(hotel.id, 500),
+          // Sin dotación cargada el dashboard sigue funcionando (deduce el
+          // objetivo de la lencería), así que un fallo aquí no debe tumbarlo.
+          getDotacionLenceria(hotel.id).catch(() => ({})),
         ]);
         if (!vivo) return;
         setDefs(d);
         setHistorico(h);
+        const total = totalDotacion(dot);
+        setDotacionTotal(total > 0 ? total : null);
       } finally {
         if (vivo) setLoading(false);
       }
@@ -329,8 +338,9 @@ const DashboardControl = () => {
       mes,
       fuenteId,
       objetivoManual: Number(objetivoManual) || null,
+      dotacion: dotacionTotal,
     });
-  }, [subs, defs, mesClave, fuenteId, objetivoManual]);
+  }, [subs, defs, mesClave, fuenteId, objetivoManual, dotacionTotal]);
 
   const fuente = dash.series.find((s) => s.defId === dash.fuenteId) ?? null;
   const ref = dash.resumen.medianaDiaria;
@@ -584,6 +594,26 @@ const DashboardControl = () => {
               la barra se queda por detrás de la marca dorada del ritmo ideal, quedan prendas del
               hotel sin pasar por lavandería.
             </p>
+            {/* Inventario contado frente a la dotación fija: la lencería solo circula,
+                así que el último conteo del mes debería cuadrar con el stock. */}
+            {dash.dotacionHotel !== null && dash.resumen.ultimoInventario !== null && (
+              <p
+                className={`text-xs mt-2 leading-relaxed font-medium ${
+                  dash.resumen.diferenciaInventario === 0
+                    ? "text-emerald-600"
+                    : (dash.resumen.diferenciaInventario ?? 0) < 0
+                      ? "text-amber-600"
+                      : "text-sky-600"
+                }`}
+              >
+                Último conteo de lencería: {fmtNum(dash.resumen.ultimoInventario)} prendas
+                {dash.resumen.diferenciaInventario === 0
+                  ? ", cuadra con la dotación."
+                  : ` (${fmtDiferencia(dash.resumen.diferenciaInventario ?? 0)} respecto a la dotación de ${fmtNum(
+                      dash.dotacionHotel
+                    )}).`}
+              </p>
+            )}
           </Panel>
 
           {/* --- Gráfica acumulada ------------------------------------------ */}

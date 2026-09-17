@@ -48,6 +48,7 @@ vi.mock("@/services/audit", () => ({
   getFormDefinitions: vi.fn(async () => defs),
   getSubmissionHistory: vi.fn(async () => subs),
   getSubmissionsByMonth: vi.fn(async () => subs),
+  getDotacionLenceria: vi.fn(async () => ({})),
 }));
 
 beforeAll(() => {

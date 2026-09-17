@@ -17,7 +17,7 @@ Vault de Obsidian con todo lo necesario recordar sobre **Polarier** (repo: `Pola
 - [[Decisiones]] — Registro de decisiones tomadas y su porqué.
 - [[Pendientes]] — Tareas y cosas por revisar.
 
-## Estado actual (2026-09-01)
+## Estado actual (2026-09-17)
 
 La aplicación está **desplegada y conectada**:
 - Frontend en Easypanel (Docker + Nginx).
@@ -27,10 +27,11 @@ La aplicación está **desplegada y conectada**:
 **En qué punto vamos (módulo de auditoría):**
 - Formularios de control operativos: lencería, producción, cuadrador Lavatín (reestructurado a líneas por prenda con Producción prenda/kg automáticas).
 - Lencería: ubicaciones editables (añadir/quitar filas manuales) + catálogo fijo. El 2026-09-01 se añadieron al catálogo del Muthu: **Innova, Puesto médico, Ama de llaves**.
+- **Dotación fija de lencería (2026-09-17):** el stock del hotel es uno (2.877 prendas en el Muthu) y solo circula entre ubicaciones. Ahora vive en la tabla `dotacion_lenceria`: el parte de lencería **arranca precargado** con ella, muestra la diferencia conteo ↔ dotación, el dashboard la usa como objetivo y avisa si el inventario no cuadra, y el informe (diario y mensual) la compara. Migración 007 **aplicada** y prompt de la routine **actualizado** el mismo día. Detalle en [[Modulo-Auditoria]].
 - **Dashboard de control:** es la **pantalla de inicio del auditor** (`/auditoria`), con el avance del mes por hotel: acumulado frente a la dotación del hotel (sale del conteo de lencería), producción diaria con los días flojos resaltados y avisos explicados. Detalle en [[Modulo-Auditoria]].
 - **Informe mensual (rehecho el 2026-09-03):** los números los hace SQL y el texto la IA. Un trigger aplana los ~90 partes del mes a `audit_daily` (plana, con los UUID de catálogo ya resueltos a nombres) y dos vistas (`audit_mes`, `audit_mes_dias`) dejan el mes en ~3 KB. Encima, una **routine de Claude en la nube** lee esas vistas y escribe el análisis en `monthly_reports.resumen`. Se dispara por cron diario o desde el botón «Generar informe» de `AuditMonth`, que encola la petición (`solicitado_at`) y despierta a la routine a través de la Edge Function `disparar-informe-mensual`. Diseño y prompt en [[Routine-Informe-Mensual]]. **Todavía sin PDF.** Hay una fila de PRUEBA de agosto 2026 en `monthly_reports`.
 
-**Pendiente inmediato:** aplicar la migración `006_auditoria_datos_ia.sql` en Supabase, crear la routine en claude.ai con su trigger de API, y desplegar la Edge Function con el token. Los pasos exactos están en [[Pendientes]].
+**Pendiente inmediato:** commitear y desplegar los cambios de la dotación (código sin commitear en la copia local), y decidir si el cron de la routine vuelve a ser diario. Ver [[Pendientes]].
 
 ## Cómo mantener esta memoria
 

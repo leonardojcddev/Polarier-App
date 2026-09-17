@@ -8,6 +8,7 @@
 // tres.
 // -----------------------------------------------------------------------------
 import type { Informe, InformeCampo, InformeSeccion, InformeTabla } from "@/lib/informe";
+import { fmtDiferencia } from "@/lib/dotacion";
 import type { MonthlyReport } from "@/services/audit";
 
 const NOMBRES_MES = [
@@ -123,6 +124,10 @@ const camposMetricas = (metricas: Record<string, unknown>): InformeCampo[] => {
   const conParte = num(metricas.diasConParte);
   const diasMes = num(metricas.diasMes);
   const dotacion = num(metricas.dotacion);
+  // Último conteo de lencería del mes y su diferencia con la dotación fija.
+  // Claves que escribe la routine (ver vault/Routine-Informe-Mensual.md).
+  const inventario = num(metricas.inventarioContado);
+  const diferencia = num(metricas.diferenciaDotacion);
 
   if (total !== null) campos.push({ label: "Partes del mes", valor: fmt(total) });
   if (conParte !== null) {
@@ -132,7 +137,19 @@ const camposMetricas = (metricas: Record<string, unknown>): InformeCampo[] => {
     });
   }
   if (dotacion !== null && dotacion > 0) {
-    campos.push({ label: "Dotación", valor: fmt(dotacion) });
+    campos.push({ label: "Dotación del hotel", valor: fmt(dotacion) });
+  }
+  if (inventario !== null && inventario > 0) {
+    campos.push({ label: "Último conteo de lencería", valor: fmt(inventario) });
+  }
+  if (diferencia !== null && dotacion !== null && dotacion > 0) {
+    campos.push({
+      label: "Diferencia con la dotación",
+      valor:
+        diferencia === 0
+          ? "Cuadra"
+          : `${fmtDiferencia(diferencia)} (${diferencia < 0 ? "faltan" : "sobran"})`,
+    });
   }
   return campos;
 };

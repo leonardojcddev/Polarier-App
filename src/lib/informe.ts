@@ -16,6 +16,7 @@ import {
   totalPMR,
 } from "@/components/audit/LineasTable";
 import { MatrixData, computeTotals } from "@/components/audit/LenceriaMatrix";
+import { compararConDotacion, fmtDiferencia, hayDotacion, type Dotacion } from "@/lib/dotacion";
 import { ValesData } from "@/components/audit/ValesForm";
 import { CategoriasData } from "@/components/audit/CategoriasForm";
 import {
@@ -40,6 +41,11 @@ export interface InformeTabla {
   columnas: string[]; // encabezados de columna (ya legibles)
   filas: (string | number)[][]; // celdas por fila
   total?: (string | number)[]; // fila de totales (opcional)
+  /**
+   * Filas de pie adicionales, pintadas después de `total` (p. ej. «Dotación» y
+   * «Diferencia» en lencería). Mismo número de celdas que `columnas`.
+   */
+  extras?: (string | number)[][];
 }
 
 /**
@@ -94,24 +100,64 @@ const camposCabecera = (
 // -----------------------------------------------------------------------------
 // Layout: lencería (matriz ubicación × prenda)
 // -----------------------------------------------------------------------------
+//
+// Con dotación: una columna «Dif.» por ubicación (conteo − dotación de esa
+// fila) y dos filas de pie, «Dotación» y «Diferencia», por prenda y en total.
+// Así el informe dice dónde faltan prendas, no solo cuántas.
 const buildLenceria = (
   data: MatrixData,
   ubicaciones: Ubicacion[],
-  prendas: Prenda[]
+  prendas: Prenda[],
+  dotacion?: Dotacion | null
 ): InformeTabla[] => {
   const totals = computeTotals(data, ubicaciones, prendas);
-  const columnas = ["Ubicación", ...prendas.map((p) => p.nombre), "Total"];
+  const cmp = dotacion && hayDotacion(dotacion) ? compararConDotacion(data, dotacion, ubicaciones, prendas) : null;
+
+  const columnas = ["Ubicación", ...prendas.map((p) => p.nombre), "Total", ...(cmp ? ["Dif."] : [])];
   const filas: (string | number)[][] = ubicaciones.map((u) => [
     u.nombre,
     ...prendas.map((p) => cel(data?.[u.id]?.[p.id])),
     totals.porUbicacion[u.id] || 0,
+    ...(cmp ? [fmtDiferencia(cmp.porUbicacion[u.id]?.diferencia ?? 0)] : []),
   ]);
   const total: (string | number)[] = [
     "Total",
     ...prendas.map((p) => totals.porPrenda[p.id] || 0),
     totals.general,
+    ...(cmp ? [fmtDiferencia(cmp.general.diferencia)] : []),
   ];
-  return [{ columnas, filas, total }];
+  const extras: (string | number)[][] | undefined = cmp
+    ? [
+        ["Dotación", ...prendas.map((p) => cmp.porPrenda[p.id]?.dotacion ?? 0), cmp.general.dotacion, ""],
+        [
+          "Diferencia",
+          ...prendas.map((p) => fmtDiferencia(cmp.porPrenda[p.id]?.diferencia ?? 0)),
+          fmtDiferencia(cmp.general.diferencia),
+          "",
+        ],
+      ]
+    : undefined;
+  return [{ columnas, filas, total, extras }];
+};
+
+// Cabecera del parte de lencería: la comparación con la dotación, en tres datos.
+const camposDotacion = (
+  data: MatrixData,
+  ubicaciones: Ubicacion[],
+  prendas: Prenda[],
+  dotacion?: Dotacion | null
+): InformeCampo[] => {
+  if (!dotacion || !hayDotacion(dotacion)) return [];
+  const cmp = compararConDotacion(data, dotacion, ubicaciones, prendas);
+  const dif = cmp.general.diferencia;
+  return [
+    { label: "Dotación del hotel", valor: String(cmp.general.dotacion) },
+    { label: "Contado", valor: String(cmp.general.contado) },
+    {
+      label: "Diferencia",
+      valor: dif === 0 ? "Cuadra" : `${fmtDiferencia(dif)} (${dif < 0 ? "faltan" : "sobran"})`,
+    },
+  ];
 };
 
 // -----------------------------------------------------------------------------
@@ -232,8 +278,19 @@ export const buildInforme = (params: {
   ubicaciones?: Ubicacion[];
   prendas?: Prenda[];
   prendasPeso?: PrendaPeso[];
+  /** Dotación fija del hotel; solo la usa el parte de lencería. */
+  dotacion?: Dotacion | null;
 }): Informe => {
-  const { submission, definition, hotel, polo, ubicaciones = [], prendas = [], prendasPeso = [] } = params;
+  const {
+    submission,
+    definition,
+    hotel,
+    polo,
+    ubicaciones = [],
+    prendas = [],
+    prendasPeso = [],
+    dotacion = null,
+  } = params;
   const config = definition.config ?? {};
   const layout = config.layout as string | undefined;
   const cabecera = config.cabecera as CampoCabecera[] | undefined;
@@ -241,8 +298,10 @@ export const buildInforme = (params: {
   const data = submission.data ?? {};
 
   let tablas: InformeTabla[] = [];
+  let camposExtra: InformeCampo[] = [];
   if (definition.tipo === "lenceria") {
-    tablas = buildLenceria(data as MatrixData, ubicaciones, prendas);
+    tablas = buildLenceria(data as MatrixData, ubicaciones, prendas, dotacion);
+    camposExtra = camposDotacion(data as MatrixData, ubicaciones, prendas, dotacion);
   } else if (layout === "vales") {
     tablas = buildVales(data as ValesData, grupos);
   } else if (layout === "categorias") {
@@ -260,7 +319,10 @@ export const buildInforme = (params: {
     polo,
     fechaLabel: fmtFecha(submission.fecha),
     estado: submission.estado === "completado" ? "Completado" : "Borrador",
-    campos: camposCabecera(cabecera, (data as { cabecera?: Record<string, string> }).cabecera),
+    campos: [
+      ...camposCabecera(cabecera, (data as { cabecera?: Record<string, string> }).cabecera),
+      ...camposExtra,
+    ],
     tablas,
   };
 };
