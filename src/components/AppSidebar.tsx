@@ -1,8 +1,9 @@
-import { MessageSquare, FolderOpen, Clock, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { MessageSquare, FolderOpen, Clock, Settings, LogOut, Sun, Moon, ClipboardCheck } from "lucide-react";
 import polarierLogo from "@/assets/polarier-logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useRole } from "@/context/RoleContext";
 import { useEffect, useState } from "react";
 import { getChats, Chat } from "@/services/chat";
 
@@ -23,6 +24,7 @@ const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
   const navigate = useNavigate();
   const { user, profile, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { hasAuditAccess } = useRole();
   const [chats, setChats] = useState<Chat[]>([]);
 
   const refreshChats = () => getChats().then(setChats).catch(() => {});
@@ -69,6 +71,20 @@ const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
         </button>
 
         <nav className="flex-1 flex flex-col gap-0.5 px-2 overflow-y-auto">
+          {/* Auditoría: solo para quien tiene algún rol en el módulo. Un auditor
+              puro nunca llega a este sidebar (vive en AuditLayout); esto es la
+              puerta de entrada de administradores y supervisores, que además
+              usan el chat y aterrizan en el lobby. */}
+          {hasAuditAccess && (
+            <button
+              onClick={() => handleNav("/auditoria")}
+              className="relative flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left text-sidebar-fg/80 hover:bg-sidebar-muted/50"
+            >
+              <ClipboardCheck size={18} />
+              <span>Auditoría</span>
+            </button>
+          )}
+
           {navItems.map((item) => {
             const active = location.pathname === item.path || (item.path === "/chat" && location.pathname.startsWith("/chat"));
             return (

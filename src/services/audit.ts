@@ -118,18 +118,44 @@ export const getFormDefinitions = async (hotelId: string): Promise<FormDefinitio
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 /**
- * Submission de un formulario para una fecha concreta (por defecto hoy).
+ * MI submission de un formulario para una fecha concreta (por defecto hoy).
  * Devuelve null si aún no existe (formulario del día sin empezar).
+ *
+ * El filtro por `user_id` es imprescindible, no una optimización: un
+ * administrador ve por RLS los partes de todo su equipo, así que sin él esta
+ * consulta podría devolver varias filas (revienta el `maybeSingle`) o cargar en
+ * el formulario el parte de otra persona. Como `saveSubmission` hace upsert con
+ * la clave (hotel, formulario, fecha, usuario), guardar entonces no corregiría
+ * ese parte: crearía una copia paralela a nombre del administrador.
+ *
+ * Para abrir el parte de otra persona (solo lectura) está `getSubmissionById`.
  */
 export const getSubmission = async (
   formDefinitionId: string,
   fecha: string = today()
 ): Promise<FormSubmission | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
   const { data, error } = await supabase
     .from('form_submissions')
     .select('*')
     .eq('form_definition_id', formDefinitionId)
     .eq('fecha', fecha)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as FormSubmission | null;
+};
+
+/**
+ * Una submission concreta por id. La RLS decide si se puede ver: la propia
+ * siempre, y las del resto del hotel solo si eres administrador.
+ */
+export const getSubmissionById = async (id: string): Promise<FormSubmission | null> => {
+  const { data, error } = await supabase
+    .from('form_submissions')
+    .select('*')
+    .eq('id', id)
     .maybeSingle();
   if (error) throw error;
   return data as FormSubmission | null;
@@ -186,6 +212,49 @@ export const getSubmissionHistory = async (
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as FormSubmission[];
+};
+
+// -----------------------------------------------------------------------------
+// Autoría de los partes (quién rellenó cada uno)
+// -----------------------------------------------------------------------------
+export interface Autor {
+  id: string;
+  nombre: string;
+  email: string | null;
+}
+
+/**
+ * Nombres de quienes firman una lista de partes, indexados por `user_id`.
+ *
+ * Solo sirve de algo para un administrador: la RLS de `profiles` deja ver el
+ * perfil propio y, si eres admin, el de la gente con rol en tus hoteles. Para
+ * los demás devuelve únicamente su propio perfil, que es justo lo que ven.
+ *
+ * Nunca lanza: si los perfiles no se pueden leer, el histórico debe seguir
+ * mostrándose (sin nombre) en lugar de quedarse en blanco.
+ */
+export const getAutores = async (userIds: string[]): Promise<Record<string, Autor>> => {
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return {};
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', ids);
+    if (error) throw error;
+    const autores: Record<string, Autor> = {};
+    for (const p of (data ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+      autores[p.id] = {
+        id: p.id,
+        nombre: p.full_name?.trim() || p.email?.split('@')[0] || 'Sin nombre',
+        email: p.email,
+      };
+    }
+    return autores;
+  } catch (e) {
+    console.warn('No se pudieron cargar los autores de los partes:', e);
+    return {};
+  }
 };
 
 // -----------------------------------------------------------------------------

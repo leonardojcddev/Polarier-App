@@ -9,6 +9,8 @@ import {
   getPrendas,
   getUbicaciones,
   getDotacionLenceria,
+  getAutores,
+  Autor,
   getMonthlyReport,
   getMonthlyReportPdfUrl,
   solicitarInformeMensual,
@@ -54,6 +56,9 @@ const AuditMonth = () => {
   const [items, setItems] = useState<FormSubmission[]>([]);
   const [defs, setDefs] = useState<Record<string, FormDefinition>>({});
   const [reporte, setReporte] = useState<MonthlyReport | null>(null);
+  // Quién firmó cada parte. Para un administrador el mes mezcla a varias
+  // personas, así que sin esto no se sabe de quién es cada fila.
+  const [autores, setAutores] = useState<Record<string, Autor>>({});
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pidiendo, setPidiendo] = useState(false);
@@ -97,6 +102,7 @@ const AuditMonth = () => {
         setItems(subs);
         setDefs(Object.fromEntries(definitions.map((d) => [d.id, d])));
         setReporte(monthly);
+        setAutores(await getAutores(subs.map((s) => s.user_id)));
       } finally {
         setLoading(false);
       }
@@ -325,11 +331,12 @@ const AuditMonth = () => {
               const def = defs[s.form_definition_id];
               const total = (s.totales as { general?: number })?.general ?? null;
               const esHoy = s.fecha === hoyStr();
+              const autor = autores[s.user_id];
+              // Se abre por id: así el formulario carga ESTE parte y no el propio
+              // de esa fecha, que para un administrador es otro distinto.
               const abrir = () =>
                 navigate(
-                  esHoy
-                    ? `/auditoria/formulario/${s.form_definition_id}`
-                    : `/auditoria/formulario/${s.form_definition_id}?fecha=${s.fecha}`
+                  `/auditoria/formulario/${s.form_definition_id}?fecha=${s.fecha}&sub=${s.id}`
                 );
               return (
                 <div
@@ -351,6 +358,7 @@ const AuditMonth = () => {
                         <p className="text-xs text-muted-foreground">
                           {fmtFecha(s.fecha)}
                           {total !== null && <> · Total: <span className="font-medium text-foreground">{total}</span></>}
+                          {autor && <> · <span className="font-medium text-foreground">{autor.nombre}</span></>}
                         </p>
                       </div>
                     </div>

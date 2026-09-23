@@ -52,13 +52,16 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Solo para auditores. Si no tiene ese rol, fuera.
+// Módulo de auditoría: lo usan quienes rellenan los partes (auditor, supervisor)
+// y quienes los revisan (admin). Un admin necesita entrar aquí para ver en el
+// histórico todo lo que rellena su equipo, así que el guard no puede pedir
+// únicamente el rol de auditor.
 const AuditorRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
-  const { hasRole, loading: roleLoading } = useRole();
+  const { hasAuditAccess, loading: roleLoading } = useRole();
   if (authLoading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!hasRole("auditor")) return <Navigate to="/lobby" replace />;
+  if (!hasAuditAccess) return <Navigate to="/lobby" replace />;
   return <>{children}</>;
 };
 

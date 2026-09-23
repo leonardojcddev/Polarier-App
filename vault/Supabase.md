@@ -80,6 +80,21 @@ Implementado en `chat.ts` y `storage.ts`:
 
 > ⚠️ Antes, `deleteChat` solo borraba la fila del chat, dejando mensajes y archivos huérfanos → el proyecto se llenaba. Corregido. Ver [[Decisiones]].
 
+## RLS del módulo de auditoría
+
+Desde la migración `008_admin_ve_todos_los_partes.sql` (2026-09-23) la lectura deja
+de ser estrictamente personal:
+
+- `form_submissions`, `audit_daily`, `audit_daily_detalle`: se ven las propias **o**
+  todas las del hotel si tienes rol `admin` allí (`has_hotel_role(hotel_id, array['admin'])`).
+- `profiles`: además del propio, se ve el perfil de quien tiene rol activo en un hotel
+  que administras (helper `puede_ver_perfil(uuid)`, `security definer` porque necesita
+  leer `user_hotel_roles` de otro usuario).
+- **Insert/update/delete no cambian:** siguen exigiendo `user_id = auth.uid()`. El
+  administrador mira, no corrige. Ver [[Modulo-Auditoria]].
+- Para añadir el rol `supervisor` a esa visibilidad basta con meterlo en los
+  `array['admin']` de la migración.
+
 ## RLS
 
 El borrado requiere policies `DELETE` para `auth.uid() = user_id` en `chats`, `chat_messages` y `documents`. Verificado que funciona en producción.
