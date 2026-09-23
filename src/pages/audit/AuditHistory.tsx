@@ -45,7 +45,10 @@ const AuditHistory = () => {
       setLoading(true);
       try {
         const [s, m] = await Promise.all([
-          getSubmissionHistory(activeHotel.id),
+          // El límite por defecto (60) se queda muy corto: con 3 partes diarios
+          // son ~20 días, y un administrador ve además los de todo su equipo,
+          // así que la lista de meses se cortaría a los pocos días.
+          getSubmissionHistory(activeHotel.id, 500),
           getMonthlyReports(activeHotel.id),
         ]);
         setSubs(s);

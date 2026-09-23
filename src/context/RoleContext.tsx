@@ -9,6 +9,10 @@ interface RoleContextType {
   loading: boolean;
   hasRole: (rol: RolHotel) => boolean;
   isAuditorOnly: boolean; // solo tiene rol de auditor → experiencia de auditoría, sin chat
+  /** Puede entrar al módulo de auditoría: lo rellena (auditor/supervisor) o lo revisa (admin). */
+  hasAuditAccess: boolean;
+  /** Administrador de algún hotel: ve los partes de todo su equipo, no solo los suyos. */
+  isAdmin: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -51,6 +55,10 @@ export const RoleProvider = ({ children }: { children: ReactNode }) => {
   const isAuditorOnly =
     roles.length > 0 && roles.every((r) => r.rol === 'auditor');
 
+  const isAdmin = hasRole('admin');
+  // Cualquier rol del módulo da acceso: el admin entra a revisar, no a rellenar.
+  const hasAuditAccess = roles.length > 0;
+
   return (
     <RoleContext.Provider
       value={{
@@ -60,6 +68,8 @@ export const RoleProvider = ({ children }: { children: ReactNode }) => {
         loading,
         hasRole,
         isAuditorOnly,
+        hasAuditAccess,
+        isAdmin,
         refresh: load,
       }}
     >

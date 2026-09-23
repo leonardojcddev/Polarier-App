@@ -34,6 +34,10 @@ vi.mock("@/services/audit", () => ({
   getMonthlyReportPdfUrl: vi.fn(async () => "https://example.test/x.pdf"),
   getPrendas: vi.fn(async () => []),
   getUbicaciones: vi.fn(async () => []),
+  getDotacionLenceria: vi.fn(async () => ({})),
+  getAutores: vi.fn(async () => ({
+    u1: { id: "u1", nombre: "Lesly Díaz", email: "lesly@polarier.com" },
+  })),
   solicitarInformeMensual: vi.fn(async () => ({ reporte: reporteListo, disparada: true })),
 }));
 
@@ -89,6 +93,14 @@ describe("AuditMonth · botonera del informe mensual", () => {
 });
 
 describe("AuditMonth · el informe en pantalla", () => {
+  // Un administrador ve en el mes los partes de todo su equipo, así que cada
+  // fila tiene que decir quién lo firmó.
+  it("cada parte del mes muestra quién lo rellenó", async () => {
+    reporteActual = reporteListo;
+    await pintar();
+    expect(await screen.findByText("Lesly Díaz")).toBeInTheDocument();
+  });
+
   it("pinta secciones y viñetas, no el markdown crudo", async () => {
     reporteActual = reporteListo;
     await pintar();

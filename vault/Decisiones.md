@@ -4,6 +4,39 @@ Registro de decisiones tomadas en el proyecto, con fecha y motivo. Lo más recie
 
 ---
 
+## 2026-09-23 — El administrador ve los partes de todo su hotel
+
+- **Contexto:** la RLS del módulo era estrictamente personal (`user_id = auth.uid()`).
+  Perfecto para quien rellena, inútil para quien supervisa: un administrador entraba al
+  histórico y no veía nada del trabajo de su equipo. De hecho ni siquiera podía entrar,
+  porque `AuditorRoute` exigía literalmente el rol `auditor`.
+- **Decisión: abrir la lectura, no la escritura.** El admin ve todos los partes de sus
+  hoteles (`form_submissions`, `audit_daily`, `audit_daily_detalle`), pero
+  insert/update/delete siguen siendo personales. Editar el parte de otro rompería la
+  trazabilidad y, con la clave única `(hotel, formulario, fecha, usuario)`, el upsert
+  crearía una entrega paralela a nombre del administrador en vez de corregir la
+  original. Un parte ajeno se abre en **solo lectura**.
+- **Decisión: abrir `profiles` lo justo.** Sin nombres el histórico mostraría UUID. Se
+  añade `puede_ver_perfil(uuid)`, que solo es cierto para el propio perfil y para quien
+  tiene rol activo en un hotel que administras. Un auditor no gana visibilidad sobre
+  nadie. Es `security definer` porque tiene que mirar los roles de otro usuario, que
+  `uhr_select_own` no deja leer.
+- **Decisión: `monthly_reports` se queda por usuario.** No hace falta abrirlo: la
+  routine redacta leyendo `audit_mes`/`audit_mes_dias`, que agregan el mes entero del
+  hotel, así que el informe de un administrador ya cubre el trabajo de todos.
+- **Consecuencia que hubo que arreglar:** `getSubmission()` no filtraba por usuario y
+  usaba `maybeSingle()`. Con la RLS abierta, un admin habría recibido varias filas (o el
+  parte de otro cargado en su formulario de hoy, que al guardar se habría duplicado a su
+  nombre). Ahora filtra por `user_id` propio, y para abrir uno ajeno está
+  `getSubmissionById()` vía `?sub=<id>`.
+- **Consecuencia menor:** el histórico pedía 60 partes. Con varias personas eso era menos
+  de una semana, así que la lista de meses se cortaba. Subido a 500, como ya hacía el
+  dashboard.
+- **Entrada al módulo:** un admin usa también el chat, así que aterriza en `/lobby`. Se
+  añadió «Auditoría» al sidebar principal cuando el usuario tiene algún rol del módulo.
+- **Deuda:** el rol `supervisor` no gana visibilidad sobre el trabajo de los auditores.
+  Si se quiere, es añadir `'supervisor'` a los `array['admin']` de la migración 008.
+
 ## 2026-09-17 — Dotación fija de lencería como dato maestro
 
 - **Contexto:** la lencería de un hotel es una cantidad fija que solo circula entre

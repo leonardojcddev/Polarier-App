@@ -9,9 +9,21 @@ Un usuario **auditor** entra en la app y ve **solo** su mundo (sin chat/document
 ## Acceso y roles
 
 - Tabla `user_hotel_roles` (rol `auditor`/`supervisor`/`admin` por hotel).
-- `RoleContext` (`src/context/RoleContext.tsx`) carga los roles del usuario.
+- `RoleContext` (`src/context/RoleContext.tsx`) carga los roles del usuario y expone `hasAuditAccess` (¿entra al módulo?) e `isAdmin`.
 - Un **auditor puro** (solo rol auditor) es redirigido a `/auditoria` y no puede entrar al chat (`NonAuditorGate` + `AuditorRoute` en `App.tsx`).
-- RLS en Supabase: cada auditor solo ve/gestiona **sus** submissions, en su hotel.
+- `AuditorRoute` deja pasar **cualquier rol del módulo**, no solo `auditor`: un administrador entra a revisar, aunque no rellene partes. Como además usa el chat, aterriza en `/lobby`, así que el sidebar principal (`AppSidebar`) muestra una entrada **Auditoría** cuando `hasAuditAccess`.
+
+### Quién ve qué (migración 008, 2026-09-23)
+
+| | Ve sus partes | Ve los del resto del hotel | Edita |
+|---|---|---|---|
+| `auditor` / `supervisor` | sí | no | solo los suyos, y solo los de hoy |
+| `admin` | sí | **sí** | solo los suyos |
+
+- La **lectura** se abre al administrador en `form_submissions`, `audit_daily`, `audit_daily_detalle` y `profiles` (este último para poder poner nombre a cada parte en vez de un UUID).
+- La **escritura sigue siendo personal** a propósito: editar el parte de otro rompería la trazabilidad y, con la clave única `(hotel, formulario, fecha, usuario)`, el upsert crearía una entrega paralela a nombre del administrador en lugar de corregir la original. Por eso un parte ajeno se abre **en solo lectura**, con el nombre de quien lo firma en la cabecera.
+- `getSubmission()` filtra por `user_id` propio. No es una optimización: sin ese filtro, un admin con la RLS abierta recibiría varias filas (revienta el `maybeSingle`) o cargaría el parte de otra persona en el formulario de hoy. Para abrir uno concreto del histórico está `getSubmissionById()`, al que se llega con `?sub=<id>`.
+- `monthly_reports` **no** se tocó: la routine lee `audit_mes`/`audit_mes_dias`, que ya agregan el mes entero del hotel, así que el informe que genera un administrador cubre el trabajo de todos.
 
 ## Navegación (layout propio)
 
@@ -79,7 +91,7 @@ src/pages/audit/
 
 ## Histórico
 
-- Lista las submissions del usuario (más recientes primero) con fecha y total.
+- Lista las submissions visibles (las propias; para un administrador, las de todo el hotel) más recientes primero, con fecha, total y **quién lo rellenó**.
 - **Clic en una entrada abre el formulario:** si es de hoy → editable; si es de un día pasado → **solo lectura** (`?fecha=YYYY-MM-DD`).
 - Botón de **ver informe**: abre la vista previa del informe y permite descargar el PDF.
 

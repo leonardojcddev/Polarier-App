@@ -34,6 +34,11 @@ Tareas y cosas por revisar. Marca `[x]` al completar.
 - [x] **Migración `007_dotacion_lenceria.sql` aplicada en Supabase** (2026-09-17, registrada como `dotacion_lenceria`): 16 ubicaciones con Piso 10/11, 76 celdas, 2.877 prendas (SP 515 · SK 125 · F 327 · TB 355 · TM 352 · TA 347 · TF 71 · TP 785), RLS con sus 4 políticas y las vistas devolviendo `dotacion_hotel`. El linter de seguridad solo señala `has_hotel_role` como SECURITY DEFINER ejecutable, igual que ya señalaba `has_hotel_access`: es un booleano sobre los roles del propio usuario, sin datos que filtrar. Ver [[Modulo-Auditoria]].
 - [x] **Prompt de la routine actualizado** (2026-09-17, por API desde Claude Code). Ver [[Routine-Informe-Mensual]].
 - [ ] Decidir el cron de la routine: está en `1 0 1 * *` (mensual), no en el diario `23 7 * * *` del diseño. Si se quiere la red de seguridad diaria para la cola, volver a ponerlo.
+- [x] **Migración `008_admin_ve_todos_los_partes.sql` aplicada** (2026-09-23, registrada como `admin_ve_todos_los_partes`). Comprobada contra producción simulando usuarios: el admin ve 4/4 partes, `audit_daily` y detalle, y los perfiles «Auditor, Leonardo» (solo quien tiene rol en el hotel); el auditor sigue viendo 0 partes y solo su perfil. El linter de seguridad añade `puede_ver_perfil` a la misma lista de SECURITY DEFINER ejecutables donde ya estaban `has_hotel_access` y `has_hotel_role`: para `anon` devuelve falso siempre, no filtra nada.
+- [x] **`leodev0211@gmail.com` es administrador** del Gran Muthu Habana (2026-09-23). Es además el dueño de los 4 partes existentes.
+- [ ] **Desplegar el frontend**: la RLS ya está abierta, pero el código que deja entrar al admin (`AuditorRoute`, entrada «Auditoría» en el sidebar, autoría en el histórico) está sin commitear. Hasta el rebuild, un admin que entre a `/auditoria` sigue rebotando al lobby.
+- [ ] Para ver de verdad «los partes de otro», el auditor (`blandonbg97@gmail.com`) tiene que rellenar alguno: hoy los 4 que hay son del propio administrador.
+- [ ] Decidir si el rol `supervisor` debe ver también el trabajo de los auditores (hoy solo lo ve `admin`). Ver [[Decisiones]].
 - [ ] UI para editar la dotación (hoy solo por SQL; la RLS ya deja escribir a `supervisor`/`admin`).
 - [ ] Cambiar el auditor de prueba (`leodev0211@gmail.com`) por el usuario real del hotel.
 - [ ] Cuando haya más de un hotel: UI de selección de hotel activo y polos turísticos.
@@ -66,7 +71,7 @@ Ver [[Routine-Informe-Mensual]] para el diseño completo y el prompt.
 - [x] **PDF y correo del informe mensual** (2026-09-03): con el informe hecho salen «Descargar» y «Enviar por correo» en vez de «Regenerar». Reutiliza el PDF y el correo del informe diario vía `src/lib/informeMensual.ts`. Ver [[Routine-Informe-Mensual]].
 - [ ] Decidir si se retiran `monthly_reports.pdf_url`, el bucket `informes-mensuales` (migración 005) y el botón «Abrir PDF»: el PDF se genera en cliente, así que ya no hacen falta. De momento se quedan, sin uso.
 - [ ] Añadir hoteles: la routine ya itera todos los hoteles activos; falta la UI de selección de hotel activo (ver también Módulo de Auditoría).
-- [ ] `getSubmissionHistory` tiene `limit = 60`: con 3 partes diarios, `AuditHistory` solo ve ~20 días de histórico, así que la lista de meses se queda corta. Independiente del informe, pero conviene arreglarlo.
+- [x] `getSubmissionHistory` tenía `limit = 60` y `AuditHistory` se quedaba en ~20 días. Subido a 500 en la llamada (2026-09-23), que es lo que ya pedía el dashboard.
 - [ ] `AuditMonth` muestra el total de cada parte leyendo `totales.general`, que **no existe en el cuadrador**: esos partes nunca muestran total. `audit_daily.valor` ya lo resuelve bien; sería cuestión de leer de ahí.
 
 ## Ideas / futuro

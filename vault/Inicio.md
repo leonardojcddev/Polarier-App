@@ -17,7 +17,7 @@ Vault de Obsidian con todo lo necesario recordar sobre **Polarier** (repo: `Pola
 - [[Decisiones]] — Registro de decisiones tomadas y su porqué.
 - [[Pendientes]] — Tareas y cosas por revisar.
 
-## Estado actual (2026-09-17)
+## Estado actual (2026-09-23)
 
 La aplicación está **desplegada y conectada**:
 - Frontend en Easypanel (Docker + Nginx).
@@ -31,7 +31,9 @@ La aplicación está **desplegada y conectada**:
 - **Dashboard de control:** es la **pantalla de inicio del auditor** (`/auditoria`), con el avance del mes por hotel: acumulado frente a la dotación del hotel (sale del conteo de lencería), producción diaria con los días flojos resaltados y avisos explicados. Detalle en [[Modulo-Auditoria]].
 - **Informe mensual (rehecho el 2026-09-03):** los números los hace SQL y el texto la IA. Un trigger aplana los ~90 partes del mes a `audit_daily` (plana, con los UUID de catálogo ya resueltos a nombres) y dos vistas (`audit_mes`, `audit_mes_dias`) dejan el mes en ~3 KB. Encima, una **routine de Claude en la nube** lee esas vistas y escribe el análisis en `monthly_reports.resumen`. Se dispara por cron diario o desde el botón «Generar informe» de `AuditMonth`, que encola la petición (`solicitado_at`) y despierta a la routine a través de la Edge Function `disparar-informe-mensual`. Diseño y prompt en [[Routine-Informe-Mensual]]. **Todavía sin PDF.** Hay una fila de PRUEBA de agosto 2026 en `monthly_reports`.
 
-**Pendiente inmediato:** commitear y desplegar los cambios de la dotación (código sin commitear en la copia local), y decidir si el cron de la routine vuelve a ser diario. Ver [[Pendientes]].
+- **Supervisión (2026-09-23):** el módulo deja de ser estrictamente personal. Un **administrador** del hotel ve en el histórico los partes de todo su equipo, con el nombre de quien firmó cada uno, y los abre en solo lectura. La escritura sigue siendo personal. Migración `008` **aplicada** y `leodev0211@gmail.com` es ya **administrador** del Muthu. Detalle en [[Modulo-Auditoria]] y [[Decisiones]].
+
+**Pendiente inmediato:** commitear y desplegar el frontend (la RLS ya está abierta, pero el código que deja entrar al admin sigue en local), y decidir si el cron de la routine vuelve a ser diario. Ver [[Pendientes]].
 
 ## Cómo mantener esta memoria
 

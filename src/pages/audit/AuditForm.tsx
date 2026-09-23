@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Save, CheckCircle2, Eye, FileText, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
+import { useAuth } from "@/context/AuthContext";
 import { buildInforme } from "@/lib/informe";
 import { hayDotacion, precargarDesdeDotacion, type Dotacion } from "@/lib/dotacion";
 import InformePreview from "@/components/audit/InformePreview";
@@ -10,6 +11,9 @@ import type { FormSubmission } from "@/services/audit";
 import {
   getFormDefinitions,
   getSubmission,
+  getSubmissionById,
+  getAutores,
+  Autor,
   saveSubmission,
   getPrendas,
   getUbicaciones,
@@ -64,12 +68,17 @@ const AuditForm = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { activeHotel } = useRole();
+  const { user } = useAuth();
 
   // Fecha objetivo: la del query (?fecha=) o hoy. Solo se puede editar la de hoy.
   const fecha = searchParams.get("fecha") || hoyStr();
-  const readOnly = fecha !== hoyStr();
+  // `?sub=` abre un parte concreto del histórico. Un administrador puede abrir
+  // así los de su equipo; sin el parámetro se carga siempre el propio.
+  const subId = searchParams.get("sub");
 
   const [def, setDef] = useState<FormDefinition | null>(null);
+  // Autor del parte abierto, cuando no es el del usuario (solo lo ve un admin).
+  const [autorAjeno, setAutorAjeno] = useState<Autor | null>(null);
   const [prendas, setPrendas] = useState<Prenda[]>([]);
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
   // Dotación fija del hotel (solo lencería): precarga el parte y sirve de referencia.
@@ -78,6 +87,10 @@ const AuditForm = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [informeOpen, setInformeOpen] = useState(false);
+
+  // Un parte ajeno nunca se edita: guardarlo no corregiría el original, crearía
+  // una copia a nombre de quien mira (la clave del upsert incluye el usuario).
+  const readOnly = fecha !== hoyStr() || autorAjeno !== null;
 
   useEffect(() => {
     if (!activeHotel || !defId) return;
@@ -91,7 +104,7 @@ const AuditForm = () => {
         const [pr, ub, sub, dot] = await Promise.all([
           getPrendas(activeHotel.id),
           getUbicaciones(activeHotel.id),
-          getSubmission(defId, fecha),
+          subId ? getSubmissionById(subId) : getSubmission(defId, fecha),
           // Sin dotación el parte funciona como siempre (matriz vacía, sin
           // comparación), así que un fallo aquí no debe impedir cargarlo.
           found?.tipo === "lenceria"
@@ -100,6 +113,10 @@ const AuditForm = () => {
         ]);
         setPrendas(pr);
         setDotacion(dot && hayDotacion(dot) ? dot : null);
+
+        // ¿Es de otra persona? Entonces solo lectura, y con su nombre a la vista.
+        const ajeno = sub && user && sub.user_id !== user.id ? sub.user_id : null;
+        setAutorAjeno(ajeno ? (await getAutores([ajeno]))[ajeno] ?? null : null);
 
         // Ubicaciones añadidas manualmente por el supervisor se guardan dentro de
         // data._ubicaciones (la BD solo tiene las fijas). Las fusionamos al cargar.
@@ -146,7 +163,7 @@ const AuditForm = () => {
         setLoading(false);
       }
     })();
-  }, [activeHotel?.id, defId, fecha]);
+  }, [activeHotel?.id, defId, fecha, subId, user?.id]);
 
   const grupos = useMemo<GrupoDef[]>(
     () => ((def?.config?.grupos as GrupoDef[]) ?? []),
@@ -273,11 +290,19 @@ const AuditForm = () => {
               <h1 className="text-lg font-semibold">{def.nombre}</h1>
               <p className="text-sm text-primary-foreground/80">
                 {activeHotel?.nombre} · {fechaLabel}
+                {autorAjeno && <> · Rellenado por {autorAjeno.nombre}</>}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {readOnly && (
-                <span className="flex items-center gap-1.5 text-xs bg-primary-foreground/15 px-3 py-1.5 rounded-full">
+                <span
+                  className="flex items-center gap-1.5 text-xs bg-primary-foreground/15 px-3 py-1.5 rounded-full"
+                  title={
+                    autorAjeno
+                      ? `Este parte lo firma ${autorAjeno.nombre}. Solo quien lo rellenó puede modificarlo.`
+                      : "Los partes de días pasados no se editan."
+                  }
+                >
                   <Eye size={14} /> Solo lectura
                 </span>
               )}
