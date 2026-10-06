@@ -36,7 +36,7 @@ Tareas y cosas por revisar. Marca `[x]` al completar.
 - [ ] Decidir el cron de la routine: está en `1 0 1 * *` (mensual), no en el diario `23 7 * * *` del diseño. Si se quiere la red de seguridad diaria para la cola, volver a ponerlo.
 - [x] **Migración `008_admin_ve_todos_los_partes.sql` aplicada** (2026-09-23, registrada como `admin_ve_todos_los_partes`). Comprobada contra producción simulando usuarios: el admin ve 4/4 partes, `audit_daily` y detalle, y los perfiles «Auditor, Leonardo» (solo quien tiene rol en el hotel); el auditor sigue viendo 0 partes y solo su perfil. El linter de seguridad añade `puede_ver_perfil` a la misma lista de SECURITY DEFINER ejecutables donde ya estaban `has_hotel_access` y `has_hotel_role`: para `anon` devuelve falso siempre, no filtra nada.
 - [x] **`leodev0211@gmail.com` es administrador** del Gran Muthu Habana (2026-09-23). Es además el dueño de los 4 partes existentes.
-- [ ] **Desplegar el frontend**: la RLS ya está abierta, pero el código que deja entrar al admin (`AuditorRoute`, entrada «Auditoría» en el sidebar, autoría en el histórico) está sin commitear. Hasta el rebuild, un admin que entre a `/auditoria` sigue rebotando al lobby.
+- [x] **Frontend desplegado** (2026-09-23): PR #6 mergeado y rebuild hecho en Easypanel (servicio `polarierauto/polarierapp`, 41 s, commit «Merge pull request #6 … admin-ve-partes-del-equipo»). El login de `app.automate-polarier.tech` carga bien tras el despliegue. **Ojo:** el rebuild de este servicio **no** se dispara solo al mergear; hay que pulsar **Deploy** a mano en el panel.
 - [ ] Para ver de verdad «los partes de otro», el auditor (`blandonbg97@gmail.com`) tiene que rellenar alguno: hoy los 4 que hay son del propio administrador.
 - [ ] Decidir si el rol `supervisor` debe ver también el trabajo de los auditores (hoy solo lo ve `admin`). Ver [[Decisiones]].
 - [ ] UI para editar la dotación (hoy solo por SQL; la RLS ya deja escribir a `supervisor`/`admin`).
@@ -52,6 +52,9 @@ Ver [[Routine-Informe-Mensual]] para el diseño completo y el prompt.
 - [x] **Capa de datos para la IA**: `006_auditoria_datos_ia.sql` (tablas `audit_daily` / `audit_daily_detalle`, trigger de aplanado, vistas `audit_mes` / `audit_mes_dias`, columna `solicitado_at`). Validada contra la BD en una transacción revertida.
 - [x] Botón «Generar informe» + polling en `AuditMonth`, y `solicitarInformeMensual()` en `audit.ts`.
 - [x] Edge Function `disparar-informe-mensual` escrita.
+
+- [ ] **Migración `009_borradores_no_son_desviacion.sql` por aplicar.** Añade el valor `borrador` a `audit_mes_dias.clasificacion` para que la vista deje de contar un parte sin cerrar como caída de producción, igual que ya hace el dashboard. Escrita sobre la versión de la vista que dejó la 007 (con dotación); la consulta está validada contra la BD en solo lectura, sin crear ni borrar nada.
+- [ ] **Sincronizar el prompt de la routine con la 009** (por API, como las veces anteriores): la lista de valores de `clasificacion` ya está actualizada en [[Routine-Informe-Mensual]], pero el prompt que vive en la routine de la nube todavía no incluye `borrador`. Si se aplica la migración sin tocar el prompt, la IA verá una etiqueta que no sabe interpretar.
 
 **Para poner en marcha (pasos manuales, en este orden):**
 
@@ -73,6 +76,18 @@ Ver [[Routine-Informe-Mensual]] para el diseño completo y el prompt.
 - [ ] Añadir hoteles: la routine ya itera todos los hoteles activos; falta la UI de selección de hotel activo (ver también Módulo de Auditoría).
 - [x] `getSubmissionHistory` tenía `limit = 60` y `AuditHistory` se quedaba en ~20 días. Subido a 500 en la llamada (2026-09-23), que es lo que ya pedía el dashboard.
 - [ ] `AuditMonth` muestra el total de cada parte leyendo `totales.general`, que **no existe en el cuadrador**: esos partes nunca muestran total. `audit_daily.valor` ya lo resuelve bien; sería cuestión de leer de ahí.
+
+## n8n — rama Carla y enrutado de polos (2026-10-05)
+
+- [~] **Rama Carla: DESCARTADA por decision de Leo (2026-10-05).** Se queda rota en produccion, de forma consciente. El diagnostico completo y lo que haria falta para retomarla estan en [[Integracion-n8n]]. Falla en silencio: quien suba un fichero con `MU` recibe el mensaje de `error3` y no se procesa nada.
+- [ ] **Publicar el borrador `53dec2de-7a48-4c13-8bed-db505eeccd86`**, que corrige solo `Switch4`/`Switch5`. Diff reverificado el 2026-10-06: las unicas diferencias frente a produccion (`e2fa038a-20c8-46d8-a65f-d470a834c029`) son cuatro valores de comparacion; mismos 142 nodos, mismas conexiones y `Execute Command` identico. Ojo: el cambio de `Switch4` si tiene efecto real (rama Leslie, operativa), pero el de `Switch5` es inerte hasta que se arregle la rama Carla. Prueba antes de publicar: subir un `HACP...` y un `CCCP...` y comprobar que llegan a `Delete rows or columns from sheet3` y `sheet5`, las dos salidas que nunca se habian ejecutado.
+- [x] **`Switch4` y `Switch5` corregidos como borrador** (2026-10-05, borrador `f15de71c-8dfa-4705-8fbb-82618bb85f22`, sin publicar). Estaban en modo primera-coincidencia con `contains 'C'`, lo que descartaba en silencio los datos de Habana y metia los de Cayo Coco en la hoja de Cayo Cruz. Ver [[Integracion-n8n]].
+- [ ] **Revisar con el mismo criterio los demas switch** (`Switch`, `Switch1`, `Switch3`, `Switch6`): que ningun valor de regla sea subcadena de otro, dado que operan en primera-coincidencia.
+- [ ] **`Switch6` le falta la regla de Holguin** (5 salidas en vez de 6); hoy Holguin va por `If4` → `Edit Fields5`. Decidir si se unifica con `Switch1`.
+- [ ] **Los 12 nodos `Delete rows or columns from sheet*`** usan `numberToDelete` con valores que desbordan INT32 (999999999999 y mas). Tres de ellos ya fallaron con 400 de la API de Sheets.
+- [ ] **`Update file1` da 404**: el fichero de Drive `1gT30p99...` ("GLOBAL-CP26") no existe o no es accesible.
+- [ ] **Migrar 5 nodos Code a `$input`**: `Code in JavaScript`, `2`, `3`, `6` y `7` usan la global legacy `items`. Funciona en 2.33.4, pero hay que hacerlo antes de cualquier salto a n8n 3.x.
+- [ ] **Quitar la service_role key de Supabase hardcodeada** en el header `apikey` del nodo `HTTP Request` de `Polarier Auto App`. Salta RLS.
 
 ## Ideas / futuro
 

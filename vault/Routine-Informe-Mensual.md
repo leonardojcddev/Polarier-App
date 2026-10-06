@@ -213,8 +213,8 @@ Cómo leer las vistas:
 - `dotacion_hotel` (en `audit_mes` y `audit_mes_dias`) es la **dotación fija del hotel**: el stock de lencería registrado por ubicación y prenda. La lencería no se consume, solo circula entre ubicaciones, así que es el objetivo del mes y el conteo debería cuadrar con ella. Si es null, el hotel no tiene dotación cargada: usa entonces `max_inventario` de lencería como referencia y dilo.
 - `max_inventario` es lo que se CONTÓ en el parte de lencería. `diferencia_dotacion` (en `audit_mes_dias`, solo lencería) es conteo del día − dotación: negativo = faltan prendas, positivo = sobran.
 - `audit_mes_dotacion` baja esa diferencia a ubicación × prenda, con el último conteo del mes.
-- `audit_mes_dias` es la serie diaria. `clasificacion` ya viene calculada contra la mediana del mes: `muy_bajo` (por debajo del 50 %), `bajo` (por debajo del 75 %), `pico` (por encima del 150 %), `normal`, `sin_datos`.
-- `borradores` son partes que nunca se cerraron: sus cifras pueden estar a medias.
+- `audit_mes_dias` es la serie diaria. `clasificacion` ya viene calculada contra la mediana del mes: `muy_bajo` (por debajo del 50 %), `bajo` (por debajo del 75 %), `pico` (por encima del 150 %), `normal`, `sin_datos`, `borrador`.
+- `borradores` son partes que nunca se cerraron: sus cifras pueden estar a medias. Por eso un día en `borrador` **no se clasifica como desviación** aunque vaya corto (migración 009): míralo como parte incompleto, no como caída de producción. Su `ratio_vs_mediana` sí viene calculado, por si quieres citar cuánto le falta.
 - `dias_con_parte` frente a `dias_mes` dice cuántos días quedaron sin registrar.
 
 *4.3 Si `audit_mes` no devuelve ninguna fila para ese hotel y periodo*, no inventes nada: pon `estado='error'`, anota el motivo y pasa a la siguiente entrada.
@@ -224,8 +224,8 @@ Cómo leer las vistas:
 - volumen del mes: producción total, kg, días con parte frente a días del mes;
 - avance frente a la dotación del hotel (`dotacion_hotel`; si es null, el `max_inventario` de lencería), si la hay;
 - inventario frente a la dotación: si el último conteo de lencería no cuadra con `dotacion_hotel`, cuántas prendas faltan o sobran y en qué ubicaciones y prendas se concentra la diferencia (`audit_mes_dotacion`). Si cuadra, dilo en una frase;
-- los días que se salen de lo normal, citando la fecha y cuánto se desvían, y qué conviene comprobar en cada caso;
-- borradores sin cerrar, si los hay;
+- los días que se salen de lo normal, citando la fecha y cuánto se desvían, y qué conviene comprobar en cada caso (los días con `clasificacion = 'borrador'` **no** van aquí: tienen su propio punto, para no contar dos veces la misma jornada);
+- borradores sin cerrar, si los hay: di que el parte quedó a medias y, si la cifra va corta, que lo más probable es que falten vales por anotar, no que bajara la producción;
 - pérdidas: faltantes, roturas, manchas y pendientes, con el desglose por prenda cuando aporte algo.
 
 Reglas: afirma solo lo que sostienen las filas que has leído. No compares con otros meses, porque no los has leído. Si falta un dato, dilo en lugar de estimarlo. Nada de relleno ni de frases de cortesía.
