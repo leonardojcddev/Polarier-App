@@ -537,17 +537,36 @@ const detectarAlertas = (ctx: {
       continue;
     }
 
-    if (reg.estado === "borrador" && d.dia < diaActual) {
-      alertas.push({
-        id: `borrador-${d.fecha}`,
-        tipo: "borrador",
-        severidad: "info",
-        fecha: d.fecha,
-        dia: d.dia,
-        titulo: `Día ${d.dia} guardado como borrador`,
-        detalle: `El parte del ${d.fechaLarga} nunca se marcó como completado, así que sus cifras pueden estar a medias.`,
-        accion: "Abre el formulario de ese día y ciérralo si ya está terminado.",
-      });
+    // Un parte sin cerrar puede estar a medias, así que no se juzga contra la
+    // mediana: que la cifra sea baja es lo esperable, y marcarlo además como
+    // desviación duplicaría el aviso sobre el mismo día. La comparación no se
+    // pierde, se cuenta dentro del propio aviso de borrador.
+    if (reg.estado === "borrador") {
+      if (d.dia < diaActual) {
+        const ratioBorrador = hayReferencia ? reg.valor / ref : null;
+        const pareceIncompleto = ratioBorrador !== null && ratioBorrador < UMBRAL_BAJO;
+        alertas.push({
+          id: `borrador-${d.fecha}`,
+          tipo: "borrador",
+          // Si además va corto, merece más atención que un simple recordatorio.
+          severidad: pareceIncompleto ? "media" : "info",
+          fecha: d.fecha,
+          dia: d.dia,
+          titulo: `Día ${d.dia} guardado como borrador`,
+          detalle: pareceIncompleto
+            ? `El parte del ${d.fechaLarga} nunca se marcó como completado y suma ${fmtNum(
+                reg.valor
+              )} prendas, un ${pct(
+                (1 - ratioBorrador) * 100
+              )} por debajo del día típico (${fmtNum(
+                ref
+              )}). Lo más probable es que falten vales por anotar, así que no se cuenta como caída de producción.`
+            : `El parte del ${d.fechaLarga} nunca se marcó como completado, así que sus cifras pueden estar a medias.`,
+          accion:
+            "Abre el formulario de ese día y ciérralo si ya está terminado; si las cifras ya son las definitivas, el día dejará de aparecer aquí.",
+        });
+      }
+      continue;
     }
 
     if (!hayReferencia) continue;
@@ -626,10 +645,18 @@ const detectarAlertas = (ctx: {
 /**
  * Clasificación de un día respecto a la referencia, para colorear la gráfica diaria.
  */
-export type EstadoDia = "sin_datos" | "bajo" | "muy_bajo" | "alto" | "normal";
+export type EstadoDia = "sin_datos" | "borrador" | "bajo" | "muy_bajo" | "alto" | "normal";
 
-export const clasificarDia = (valor: number, referencia: number): EstadoDia => {
+export const clasificarDia = (
+  valor: number,
+  referencia: number,
+  esBorrador = false
+): EstadoDia => {
   if (valor <= 0) return "sin_datos";
+  // Mismo criterio que `detectarAlertas`: un parte sin cerrar no se compara con
+  // la mediana, así que la barra no se pinta como desviación. Cubre también el
+  // día en curso, que está en borrador hasta que se cierra y siempre va corto.
+  if (esBorrador) return "borrador";
   if (referencia <= 0) return "normal";
   const r = valor / referencia;
   if (r < UMBRAL_MUY_BAJO) return "muy_bajo";
@@ -646,6 +673,7 @@ export const COLOR_ESTADO: Record<EstadoDia, string> = {
   bajo: "hsl(25 90% 52%)",
   alto: "hsl(var(--accent))",
   normal: "hsl(var(--primary))",
+  borrador: "hsl(var(--muted-foreground))",
 };
 
 export const ETIQUETA_ESTADO: Record<EstadoDia, string> = {
@@ -654,6 +682,7 @@ export const ETIQUETA_ESTADO: Record<EstadoDia, string> = {
   bajo: "Por debajo",
   alto: "Pico",
   normal: "En línea",
+  borrador: "Borrador",
 };
 
 /** Meses con actividad en el histórico, más reciente primero. */

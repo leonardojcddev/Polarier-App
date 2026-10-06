@@ -357,7 +357,13 @@ const DashboardControl = () => {
           fechaLarga: d.fechaLarga,
           futuro: d.futuro,
           valor: d.futuro ? null : valor,
-          estado: d.futuro ? "sin_datos" : clasificarDia(valor, ref),
+          estado: d.futuro
+            ? "sin_datos"
+            : clasificarDia(
+                valor,
+                ref,
+                dash.fuenteId ? d.porForm[dash.fuenteId]?.estado === "borrador" : false
+              ),
           desvio: ref > 0 && valor > 0 ? (valor / ref - 1) * 100 : null,
           otros: dash.series
             .filter((s) => s.defId !== dash.fuenteId && d.porForm[s.defId])
@@ -681,7 +687,7 @@ const DashboardControl = () => {
             icon={BarChart3}
             extra={
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/85">
-                {(["normal", "bajo", "muy_bajo", "alto", "sin_datos"] as const).map((e) => (
+                {(["normal", "bajo", "muy_bajo", "alto", "borrador", "sin_datos"] as const).map((e) => (
                   <span key={e} className="flex items-center gap-1.5">
                     <span
                       className="inline-block w-2.5 h-2.5 rounded-sm ring-1 ring-white/30"
@@ -696,8 +702,9 @@ const DashboardControl = () => {
             <Nota>
               Cada barra es un día. La línea horizontal marca el día típico del mes (mediana). Las
               barras naranjas y rojas son los días que se quedaron claramente por debajo:{" "}
-              <strong className="text-foreground">esos son los que hay que vigilar</strong>. Pulsa
-              una barra para ver el detalle.
+              <strong className="text-foreground">esos son los que hay que vigilar</strong>. Los
+              días en gris son partes aún sin cerrar: sus cifras pueden estar a medias, así que no
+              se comparan con el día típico. Pulsa una barra para ver el detalle.
             </Nota>
             <ResponsiveContainer width="100%" height={240}>
               <ComposedChart

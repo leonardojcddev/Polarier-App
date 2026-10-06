@@ -31,7 +31,14 @@ Frontend **Vite** servido como estáticos. El `Dockerfile` (multi-stage) compila
 3. Build: **Dockerfile** (autodetectado).
 4. **Environment**: pegar las 5 variables.
 5. **Ports**: exponer el **80** (Nginx).
-6. Deploy. Cada push a `main` puede disparar redeploy automático.
+6. Deploy. **Comprobado el 2026-09-23: NO hay redeploy automático al mergear en `main`.** Hay que entrar al panel y pulsar **Deploy** a mano.
+
+## Dónde está todo (comprobado 2026-09-23)
+
+- Panel: `https://1tn4v0.easypanel.host` (pide usuario y contraseña).
+- Proyecto `polarierauto`, servicio del frontend: **`polarierapp`** (tipo App). Los demás (`n8n`, `n8n-db`, `n8n-runner`, `evolution-api`, `evolution-api-db`, `evolution-api-redis`, `pythonrunner`) no son la web.
+- En el servicio: botón verde **Deploy** arriba; pestaña **Deployments** para ver el historial y los logs. Un build tarda ~40 s.
+- Fuente configurada: GitHub `leonardojcddev/Polarier-App`, rama `main`, build path `/`.
 
 ## Dominio y HTTPS
 

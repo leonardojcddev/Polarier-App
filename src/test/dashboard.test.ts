@@ -112,6 +112,49 @@ describe("buildDashboard", () => {
     expect(d.alertas.some((a) => a.tipo === "borrador" && a.dia === 3)).toBe(true);
   });
 
+  it("un borrador flojo avisa una sola vez, no como caída de producción", () => {
+    const subs = [
+      prod("2026-06-01", 100),
+      prod("2026-06-02", 100),
+      prod("2026-06-03", 100),
+      prod("2026-06-04", 30, "borrador"), // iría al 30 % del día típico
+    ];
+    const d = buildDashboard({
+      submissions: subs,
+      definitions: defs,
+      anio: 2026,
+      mes: 6,
+      hoy: "2026-06-05",
+    });
+
+    const delDia4 = d.alertas.filter((a) => a.dia === 4);
+    expect(delDia4).toHaveLength(1);
+    expect(delDia4[0].tipo).toBe("borrador");
+    // Pero la desviación no se pierde: se cuenta dentro del aviso de borrador,
+    // que sube a severidad media para que no quede enterrado entre los informativos.
+    expect(delDia4[0].severidad).toBe("media");
+    expect(delDia4[0].detalle).toContain("70 %");
+    expect(d.alertas.some((a) => a.tipo === "produccion_baja" && a.dia === 4)).toBe(false);
+  });
+
+  it("el borrador del día en curso no genera aviso", () => {
+    const subs = [
+      prod("2026-06-01", 100),
+      prod("2026-06-02", 100),
+      prod("2026-06-03", 100),
+      prod("2026-06-04", 20, "borrador"), // hoy, a medio rellenar
+    ];
+    const d = buildDashboard({
+      submissions: subs,
+      definitions: defs,
+      anio: 2026,
+      mes: 6,
+      hoy: "2026-06-04",
+    });
+
+    expect(d.alertas.some((a) => a.dia === 4)).toBe(false);
+  });
+
   it("avisa cuando el ritmo no llega a la dotación del mes", () => {
     const subs = [
       ...Array.from({ length: 10 }, (_, i) =>
@@ -245,6 +288,13 @@ describe("clasificarDia", () => {
     expect(clasificarDia(70, 100)).toBe("bajo");
     expect(clasificarDia(100, 100)).toBe("normal");
     expect(clasificarDia(200, 100)).toBe("alto");
+  });
+
+  it("un parte sin cerrar no se pinta como desviación", () => {
+    expect(clasificarDia(40, 100, true)).toBe("borrador");
+    expect(clasificarDia(200, 100, true)).toBe("borrador");
+    // Sin datos manda sobre el estado del parte: no hay nada que mostrar.
+    expect(clasificarDia(0, 100, true)).toBe("sin_datos");
   });
 });
 
